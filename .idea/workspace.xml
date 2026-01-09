@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="AutoImportSettings">
+    <option name="autoReloadType" value="SELECTIVE" />
+  </component>
+  <component name="ChangeListManager">
+    <list default="true" id="cf9be97e-6e8b-4442-9335-a56bbb49ae38" name="Changes" comment="">
+      <change afterPath="$PROJECT_DIR$/database.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/player.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/start_window/images/log_in.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/first_room/drawing_first_room_first_lvl.py" beforeDir="false" afterPath="$PROJECT_DIR$/first_room/drawing_first_room_first_lvl.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/first_room/drawing_second_room_first_lvl.py" beforeDir="false" afterPath="$PROJECT_DIR$/first_room/drawing_second_room_first_lvl.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/main.py" beforeDir="false" afterPath="$PROJECT_DIR$/main.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/start_window/start_window.py" beforeDir="false" afterPath="$PROJECT_DIR$/start_window/start_window.py" afterDir="false" />
+    </list>
+    <option name="SHOW_DIALOG" value="false" />
+    <option name="HIGHLIGHT_CONFLICTS" value="true" />
+    <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
+    <option name="LAST_RESOLUTION" value="IGNORE" />
+  </component>
+  <component name="FileTemplateManagerImpl">
+    <option name="RECENT_TEMPLATES">
+      <list>
+        <option value="Python Script" />
+      </list>
+    </option>
+  </component>
+  <component name="Git.Settings">
+    <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
+  </component>
+  <component name="ProjectColorInfo">{
+  &quot;associatedIndex&quot;: 0
+}</component>
+  <component name="ProjectId" id="37A38aY1sCkEUmhhDP7wSFPa6It" />
+  <component name="ProjectViewState">
+    <option name="hideEmptyMiddlePackages" value="true" />
+    <option name="showLibraryContents" value="true" />
+  </component>
+  <component name="PropertiesComponent"><![CDATA[{
+  "keyToString": {
+    "ModuleVcsDetector.initialDetectionPerformed": "true",
+    "Python.drawing.executor": "Run",
+    "Python.drawing_first_room_first_lvl.executor": "Run",
+    "Python.drawing_second_room_first_lvl.executor": "Run",
+    "Python.main.executor": "Run",
+    "Python.start_window.executor": "Run",
+    "RunOnceActivity.ShowReadmeOnStart": "true",
+    "RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252": "true",
+    "RunOnceActivity.git.unshallow": "true",
+    "git-widget-placeholder": "main",
+    "last_opened_file_path": "C:/Users/user/PycharmProjects/Arcade_project_by_CCC/start_window/images"
+  }
+}]]></component>
+  <component name="RecentsManager">
+    <key name="CopyFile.RECENT_KEYS">
+      <recent name="C:\Users\user\PycharmProjects\Arcade_project_by_CCC\start_window\images" />
+      <recent name="C:\Users\user\PycharmProjects\Arcade_project_by_CCC\first_room\images" />
+      <recent name="C:\Users\user\PycharmProjects\Arcade_project_by_CCC" />
+    </key>
+    <key name="MoveFile.RECENT_KEYS">
+      <recent name="C:\Users\user\PycharmProjects\Arcade_project_by_CCC\first_room\images" />
+      <recent name="C:\Users\user\PycharmProjects\Arcade_project_by_CCC" />
+      <recent name="C:\Users\user\PycharmProjects\Arcade_project_by_CCC\start_window" />
+    </key>
+  </component>
+  <component name="SharedIndexes">
+    <attachedChunks>
+      <set>
+        <option value="bundled-python-sdk-ce6832f46686-7b97d883f26b-com.jetbrains.pycharm.pro.sharedIndexes.bundled-PY-252.25557.178" />
+      </set>
+    </attachedChunks>
+  </component>
+  <component name="TaskManager">
+    <task active="true" id="Default" summary="Default task">
+      <changelist id="cf9be97e-6e8b-4442-9335-a56bbb49ae38" name="Changes" comment="" />
+      <created>1766331889617</created>
+      <option name="number" value="Default" />
+      <option name="presentableId" value="Default" />
+      <updated>1766331889617</updated>
+    </task>
+    <servers />
+  </component>
+</project>
