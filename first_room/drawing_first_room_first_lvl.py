@@ -282,38 +282,6 @@ class GameWindow(arcade.Window):
             anchor_y="center"
         )
 
-        self.hp_text = arcade.Text(
-            "",
-            0, 0,
-            arcade.color.GREEN,
-            16,
-            align="center",
-            anchor_x="center",
-            anchor_y="center"
-        )
-
-        self.arena_text = arcade.Text(
-            "",
-            SCREEN_WIDTH // 2,
-            SCREEN_HEIGHT - 100,
-            arcade.color.YELLOW,
-            24,
-            align="center",
-            anchor_x="center",
-            anchor_y="center"
-        )
-
-        self.robot_hp_text = arcade.Text(
-            "",
-            SCREEN_WIDTH // 2,
-            SCREEN_HEIGHT - 150,
-            arcade.color.ORANGE,
-            20,
-            align="center",
-            anchor_x="center",
-            anchor_y="center"
-        )
-
         self.player = Player(dash_unlocked=self.dash_unlocked)
 
         self.create_platforms()
@@ -365,22 +333,27 @@ class GameWindow(arcade.Window):
 
             robot.facing_right = True
             robot.scale = 2.0
-            robot.health = 1000
+            robot.health = 1500
+            robot.max_health = 1500
 
             self.robots_list.append(robot)
-
             self.arena_robots.append(robot)
 
     def spawn_arena_robots(self):
         if self.arena_robots_spawned:
             return
 
-        for robot in self.arena_robots:
-            if not robot.spawned:
-                robot.spawn(robot.center_x, robot.platform_y)
+        try:
+            for robot in self.arena_robots:
+                if not robot.spawned:
+                    robot.spawn(robot.center_x, robot.platform_y)
 
-        self.arena_robots_spawned = True
-        self.arena_start_time = time.time()
+            self.arena_robots_spawned = True
+            self.arena_start_time = time.time()
+            self.arena_message = "Арена активирована! Победите роботов!"
+            self.arena_message_timer = 3.0
+        except Exception:
+            pass
 
     def check_arena_activation(self):
         if not self.dash_unlocked:
@@ -423,18 +396,20 @@ class GameWindow(arcade.Window):
             completion_time = int(time.time() - self.arena_start_time)
 
             if self.user_id:
-                from database import update_arena_progress
-                update_arena_progress(
-                    user_id=self.user_id,
-                    arena_completed=True,
-                    robots_defeated=2,
-                    damage_taken=int(100 - self.player.hp),
-                    completion_time=completion_time
-                )
+                try:
+                    from database import update_arena_progress
+                    update_arena_progress(
+                        user_id=self.user_id,
+                        arena_completed=True,
+                        robots_defeated=2,
+                        damage_taken=int(100 - self.player.hp),
+                        completion_time=completion_time
+                    )
+                except Exception:
+                    pass
 
-    def show_arena_message(self, message):
-        self.arena_message = message
-        self.arena_message_timer = 3.0
+            self.arena_message = "Арена пройдена!"
+            self.arena_message_timer = 3.0
 
     def create_platforms(self):
         floor_segments = 10
@@ -707,67 +682,10 @@ class GameWindow(arcade.Window):
             self.dash_cooldown_text.y = SCREEN_HEIGHT - 50
             self.dash_cooldown_text.draw()
 
-        hp_color = arcade.color.GREEN
-        if self.player.hp < 30:
-            hp_color = arcade.color.RED
-        elif self.player.hp < 60:
-            hp_color = arcade.color.YELLOW
-
-        self.hp_text.text = f"HP: {int(self.player.hp)}/{self.player.max_hp}"
-        self.hp_text.color = hp_color
-        self.hp_text.x = 100
-        self.hp_text.y = SCREEN_HEIGHT - 50
-        self.hp_text.draw()
-
-        hp_width = 200
-        hp_height = 20
-        hp_x = 100
-        hp_y = SCREEN_HEIGHT - 80
-
-        arcade.draw_rect_filled(arcade.rect.XYWH(
-            hp_x, hp_y,
-            hp_width, hp_height),
-            arcade.color.BLACK
-        )
-
-        hp_percentage = self.player.hp / self.player.max_hp
-        current_hp_width = hp_width * hp_percentage
-
-        arcade.draw_rect_filled(arcade.rect.XYWH(
-            hp_x - (hp_width - current_hp_width) / 2, hp_y,
-            current_hp_width, hp_height),
-            hp_color
-        )
-
-        arcade.draw_rect_outline(arcade.rect.XYWH(
-            hp_x, hp_y,
-            hp_width, hp_height),
-            arcade.color.WHITE, 2
-        )
-
-        if self.arena_message_timer > 0:
-            self.arena_text.text = self.arena_message
-            self.arena_text.draw()
-
-        if self.arena_active and not self.arena_completed:
-            total_robot_hp = 0
-            active_robots = 0
-
-            for robot in self.arena_robots:
-                if robot.active and robot.spawned:
-                    total_robot_hp += robot.health
-                    active_robots += 1
-
-            if active_robots > 0:
-                avg_hp = total_robot_hp / active_robots
-                self.robot_hp_text.text = f"Роботы: {active_robots} | HP: {int(avg_hp)}/{300}"
-                self.robot_hp_text.draw()
-
         if self.transition_to_room2 and self.transition_alpha > 0:
             arcade.draw_rect_filled(arcade.rect.XYWH(
-                0, 0,
-                SCREEN_WIDTH,
-                SCREEN_HEIGHT),
+                SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2,
+                10000, 10000),
                 (0, 0, 0, int(self.transition_alpha))
             )
 
@@ -841,7 +759,7 @@ class GameWindow(arcade.Window):
 
         self.update_robots(delta_time)
 
-        if self.player.center_y > self.level_top  and not self.transition_to_room2:
+        if self.player.center_y > self.level_top - 200 and not self.transition_to_room2:
             if not self.dash_unlocked:
                 self.start_transition_to_room2()
 
