@@ -759,7 +759,7 @@ class GameWindow(arcade.Window):
 
         self.update_robots(delta_time)
 
-        if self.player.center_y > self.level_top - 200 and not self.transition_to_room2:
+        if self.player.center_y > self.level_top and not self.transition_to_room2:
             if not self.dash_unlocked:
                 self.start_transition_to_room2()
 
@@ -928,4 +928,4 @@ def start_game():
 
 
 if __name__ == "__main__":
-    start_game()
+    start_game() 
