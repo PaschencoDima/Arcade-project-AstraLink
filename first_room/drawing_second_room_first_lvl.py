@@ -292,7 +292,7 @@ class MyGame(arcade.Window):
         self.platform = arcade.load_texture('first_room/images/platform1.png')
 
         self.platforms = SpriteList()
-        self.walls = SpriteList()
+        self.walls = arcade.SpriteList()
         self.background_platforms = arcade.SpriteList()
         self.dust_particles = arcade.SpriteList()
 
@@ -577,7 +577,8 @@ class MyGame(arcade.Window):
         self.player.unlock_dash()
 
         if self.user_id:
-            update_player_progress(self.user_id, dash_unlocked=True)
+            from database import unlock_dash_ability
+            unlock_dash_ability(self.user_id)
             update_current_room(self.user_id, 1)
 
         self.close()

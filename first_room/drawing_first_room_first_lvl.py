@@ -3,11 +3,12 @@ import sys
 import os
 import random
 import math
+import time
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from player import Player, DustParticle
-from database import get_current_user, update_current_room, get_player_progress
+from database import get_current_user, update_current_room, get_player_progress, update_arena_progress
 
 SCREEN_WIDTH, SCREEN_HEIGHT = 1600, 900
 TITLE = "Texture"
@@ -212,6 +213,8 @@ class GameWindow(arcade.Window):
 
         self.dash_cooldown_text = None
         self.hp_text = None
+        self.arena_text = None
+        self.robot_hp_text = None
 
         self.physics_engine = None
         self.update_time = 0
@@ -229,12 +232,22 @@ class GameWindow(arcade.Window):
         self.transition_duration = 1.0
         self.transition_alpha = 0
 
+        self.arena_active = False
+        self.arena_robots_spawned = False
+        self.arena_completed = False
+        self.arena_robots = []
+        self.arena_start_time = 0
+        self.arena_message_timer = 0
+        self.arena_message = ""
+
         self.user_id = get_current_user()
         self.dash_unlocked = False
 
         if self.user_id:
             self.dash_unlocked = get_player_progress(self.user_id)
             update_current_room(self.user_id, 1)
+
+        self.robots_list = arcade.SpriteList()
 
         self.setup()
 
@@ -257,6 +270,7 @@ class GameWindow(arcade.Window):
         self.background_platforms = arcade.SpriteList()
         self.dust_particles = arcade.SpriteList()
         self.geysers = arcade.SpriteList()
+        self.robots_list = arcade.SpriteList()
 
         self.dash_cooldown_text = arcade.Text(
             "",
@@ -273,6 +287,28 @@ class GameWindow(arcade.Window):
             0, 0,
             arcade.color.GREEN,
             16,
+            align="center",
+            anchor_x="center",
+            anchor_y="center"
+        )
+
+        self.arena_text = arcade.Text(
+            "",
+            SCREEN_WIDTH // 2,
+            SCREEN_HEIGHT - 100,
+            arcade.color.YELLOW,
+            24,
+            align="center",
+            anchor_x="center",
+            anchor_y="center"
+        )
+
+        self.robot_hp_text = arcade.Text(
+            "",
+            SCREEN_WIDTH // 2,
+            SCREEN_HEIGHT - 150,
+            arcade.color.ORANGE,
+            20,
             align="center",
             anchor_x="center",
             anchor_y="center"
@@ -296,6 +332,8 @@ class GameWindow(arcade.Window):
             self.platforms.append(geyser.platform_sprite)
             self.background_platforms.append(geyser.platform_sprite)
 
+        self.create_arena_robots()
+
         self.physics_engine = arcade.PhysicsEnginePlatformer(
             self.player,
             self.platforms,
@@ -310,6 +348,93 @@ class GameWindow(arcade.Window):
         for _ in range(random.randint(15, 20)):
             particle = DustParticle(self.player.center_x, self.player.bottom)
             self.dust_particles.append(particle)
+
+    def create_arena_robots(self):
+        from first_room.robot import Robot
+
+        platform_positions = [
+            (720 * 2 + 200, 600),
+            (1040 * 2 + 200, 600)
+        ]
+
+        for x, y in platform_positions:
+            robot = Robot(x=x, y=y + 50, player=self.player, is_arena_robot=True)
+            robot.platform_left = x - 200
+            robot.platform_right = x + 200
+            robot.platform_y = y + 50
+
+            robot.facing_right = True
+            robot.scale = 2.0
+            robot.health = 1000
+
+            self.robots_list.append(robot)
+
+            self.arena_robots.append(robot)
+
+    def spawn_arena_robots(self):
+        if self.arena_robots_spawned:
+            return
+
+        for robot in self.arena_robots:
+            if not robot.spawned:
+                robot.spawn(robot.center_x, robot.platform_y)
+
+        self.arena_robots_spawned = True
+        self.arena_start_time = time.time()
+
+    def check_arena_activation(self):
+        if not self.dash_unlocked:
+            return
+
+        if self.arena_active or self.arena_completed:
+            return
+
+        arena_platforms = [
+            (720 * 2, 600, 400),
+            (830 * 2, 600, 1600),
+            (920 * 2, 600, 400),
+            (1040 * 2, 600, 400)
+        ]
+
+        for x, y, width in arena_platforms:
+            platform_left = x - width / 2
+            platform_right = x + width / 2
+
+            if (platform_left <= self.player.center_x <= platform_right and
+                    y - 100 <= self.player.center_y <= y + 100):
+                self.arena_active = True
+                self.spawn_arena_robots()
+                return
+
+    def check_arena_completion(self):
+        if not self.arena_active or self.arena_completed:
+            return
+
+        arena_robots_alive = False
+        for robot in self.arena_robots:
+            if robot.active and robot.spawned:
+                arena_robots_alive = True
+                break
+
+        if not arena_robots_alive and self.arena_robots_spawned:
+            self.arena_completed = True
+            self.arena_active = False
+
+            completion_time = int(time.time() - self.arena_start_time)
+
+            if self.user_id:
+                from database import update_arena_progress
+                update_arena_progress(
+                    user_id=self.user_id,
+                    arena_completed=True,
+                    robots_defeated=2,
+                    damage_taken=int(100 - self.player.hp),
+                    completion_time=completion_time
+                )
+
+    def show_arena_message(self, message):
+        self.arena_message = message
+        self.arena_message_timer = 3.0
 
     def create_platforms(self):
         floor_segments = 10
@@ -327,16 +452,13 @@ class GameWindow(arcade.Window):
         self.platforms.append(floor_segment)
         self.background_platforms.append(floor_segment)
 
-        xx = 50
-        for i in range(47):
-            lava = arcade.Sprite()
-            lava.texture = arcade.load_texture("first_room/images/falling_lava.png")
-            lava.center_x = self.w // 7 + xx + 5
-            lava.center_y = 42
-            lava.width = 660
-            lava.height = 30
-            self.spikes.append(lava)
-            xx += 60
+        lava = arcade.Sprite()
+        lava.texture = arcade.load_texture("first_room/images/falling_lava.png")
+        lava.center_x = 2300
+        lava.center_y = 1580
+        lava.width = 100
+        lava.height = 540
+        self.spikes.append(lava)
 
         platforms_data = [
             (280, (92 - 28) * 2, self.small_platform, 2000, 800, True),
@@ -362,6 +484,7 @@ class GameWindow(arcade.Window):
             (940 * 2, 1290, self.big_platform, 400, 100, True),
             (2150, 1410, self.platform, 1600, 600, True),
             (2150, 1430, self.small_platform, 2000, 800, True),
+            (3000, 800, self.small_platform, 2000, 800, True),
         ]
 
         for x, y, texture, width, height, add_collision in platforms_data:
@@ -519,6 +642,33 @@ class GameWindow(arcade.Window):
                 self.platforms.append(ceiling_platform)
                 ceiling_x += wall_size
 
+    def update_robots(self, delta_time):
+        for robot in self.robots_list:
+            robot.update(delta_time)
+
+            if not robot.active or not robot.spawned:
+                continue
+
+            for bullet in robot.bullets:
+                if arcade.check_for_collision(self.player, bullet):
+                    bullet.remove_from_sprite_lists()
+                    damage_taken = self.player.take_damage(robot.bullet_damage)
+                    if damage_taken and self.player.hp <= 0:
+                        self.reset_player()
+                    break
+
+            if arcade.check_for_collision(self.player, robot):
+                damage_taken = self.player.take_damage(robot.contact_damage)
+                if damage_taken:
+                    if self.player.center_x < robot.center_x:
+                        self.player.change_x = -10
+                    else:
+                        self.player.change_x = 10
+                    self.player.change_y = 5
+
+                    if self.player.hp <= 0:
+                        self.reset_player()
+
     def on_draw(self):
         self.clear()
 
@@ -543,15 +693,10 @@ class GameWindow(arcade.Window):
         for geyser in self.geysers:
             geyser.draw()
 
-        arcade.draw_texture_rect(
-            self.player.texture,
-            arcade.rect.XYWH(
-                self.player.center_x,
-                self.player.center_y,
-                self.player.width,
-                self.player.height
-            )
-        )
+        for robot in self.robots_list:
+            robot.draw()
+
+        self.player.draw()
 
         self.gui_camera.use()
 
@@ -600,20 +745,37 @@ class GameWindow(arcade.Window):
             arcade.color.WHITE, 2
         )
 
+        if self.arena_message_timer > 0:
+            self.arena_text.text = self.arena_message
+            self.arena_text.draw()
+
+        if self.arena_active and not self.arena_completed:
+            total_robot_hp = 0
+            active_robots = 0
+
+            for robot in self.arena_robots:
+                if robot.active and robot.spawned:
+                    total_robot_hp += robot.health
+                    active_robots += 1
+
+            if active_robots > 0:
+                avg_hp = total_robot_hp / active_robots
+                self.robot_hp_text.text = f"Роботы: {active_robots} | HP: {int(avg_hp)}/{300}"
+                self.robot_hp_text.draw()
+
         if self.transition_to_room2 and self.transition_alpha > 0:
-            self.gui_camera.use()
-            arcade.draw_rect_filled(
-                arcade.rect.XYWH(
-                    SCREEN_WIDTH // 2,
-                    SCREEN_HEIGHT // 2,
-                    SCREEN_WIDTH,
-                    SCREEN_HEIGHT
-                ),
+            arcade.draw_rect_filled(arcade.rect.XYWH(
+                0, 0,
+                SCREEN_WIDTH,
+                SCREEN_HEIGHT),
                 (0, 0, 0, int(self.transition_alpha))
             )
 
     def on_update(self, delta_time):
         self.update_time = delta_time
+
+        if self.arena_message_timer > 0:
+            self.arena_message_timer -= delta_time
 
         if self.player.dashing:
             self.player.dash_timer -= delta_time
@@ -655,11 +817,6 @@ class GameWindow(arcade.Window):
 
         self.player.update_texture()
 
-        if self.player.change_x > 0:
-            self.player.scale_x = -0.6
-        elif self.player.change_x < 0:
-            self.player.scale_x = 0.6
-
         if was_on_ground == False and self.player.on_ground == True:
             self.create_dust_effect()
 
@@ -676,7 +833,15 @@ class GameWindow(arcade.Window):
         if self.player.bottom < -100:
             self.reset_player()
 
-        if self.player.center_y > self.level_top - 200 and not self.transition_to_room2:
+        if self.dash_unlocked and not self.arena_completed:
+            self.check_arena_activation()
+            self.check_arena_completion()
+
+        self.check_player_attack()
+
+        self.update_robots(delta_time)
+
+        if self.player.center_y > self.level_top  and not self.transition_to_room2:
             if not self.dash_unlocked:
                 self.start_transition_to_room2()
 
@@ -779,12 +944,17 @@ class GameWindow(arcade.Window):
                 self.player.jumping = True
         elif key == arcade.key.LEFT or key == arcade.key.A:
             self.player.change_x = -PLAYER_MOVEMENT_SPEED
+            self.player.set_direction(False)
             self.player.dash_direction = -1
         elif key == arcade.key.RIGHT or key == arcade.key.D:
             self.player.change_x = PLAYER_MOVEMENT_SPEED
+            self.player.set_direction(True)
             self.player.dash_direction = 1
         elif key == arcade.key.Q:
             self.player.activate_dash()
+        elif key == arcade.key.Z or key == arcade.key.L:
+            if self.player.can_attack():
+                self.player.start_attack()
         elif key == arcade.key.ESCAPE:
             try:
                 from start_window.start_window import StoryWindow
@@ -804,6 +974,34 @@ class GameWindow(arcade.Window):
                 self.player.change_x = 0
         elif key == arcade.key.UP or key == arcade.key.W or key == arcade.key.SPACE:
             self.player.jumping = False
+
+    def on_mouse_press(self, x, y, button, modifiers):
+        if button == arcade.MOUSE_BUTTON_LEFT:
+            if self.player.can_attack():
+                self.player.start_attack()
+
+    def check_player_attack(self):
+        if not self.player.attacking:
+            return
+
+        hitbox = self.player.get_attack_hitbox()
+        if not hitbox:
+            return
+
+        attack_left, attack_right, attack_bottom, attack_top = hitbox
+
+        for robot in self.robots_list:
+            if not robot.active or not robot.spawned:
+                continue
+
+            if (attack_right > robot.left and
+                    attack_left < robot.right and
+                    attack_top > robot.bottom and
+                    attack_bottom < robot.top):
+
+                damage = self.player.deal_damage()
+                if damage > 0:
+                    robot.take_damage(damage)
 
 
 def start_game():

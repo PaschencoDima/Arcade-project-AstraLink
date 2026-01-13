@@ -541,18 +541,6 @@ class StartWindow(arcade.Window):
         self.texture = arcade.load_texture(get_resource_path("images/background.png"))
         self.button_texture = arcade.load_texture(get_resource_path('images/button.png'))
 
-        self.button_text = arcade.Text(
-            "НАЧАТЬ ИГРУ",
-            self.button_x,
-            self.button_y,
-            arcade.color.WHITE,
-            48,
-            align="center",
-            anchor_x="center",
-            anchor_y="center",
-            font_name='segoe print'
-        )
-
     def on_draw(self):
         self.clear()
 
@@ -569,9 +557,7 @@ class StartWindow(arcade.Window):
                 self.button_width,
                 self.button_height
             )
-        )
-
-        self.button_text.draw()
+        ) 
 
     def on_mouse_press(self, x, y, button, modifiers):
         button_left = self.button_x - self.button_width // 2
