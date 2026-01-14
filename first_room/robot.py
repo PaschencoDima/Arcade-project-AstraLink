@@ -16,8 +16,8 @@ class Robot(arcade.Sprite):
 
         self.active = True
         self.spawned = False if is_arena_robot else True
-        self.health = 1000
-        self.max_health = 1000
+        self.health = 300
+        self.max_health = 300
         self.bullet_damage = 25
         self.contact_damage = 20
 
