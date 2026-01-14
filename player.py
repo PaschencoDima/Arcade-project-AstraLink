@@ -9,8 +9,8 @@ PLAYER_MOVEMENT_SPEED = 7
 PLAYER_JUMP_SPEED = 17
 GRAVITY = 1
 PLAYER_MAX_HP = 100
-DASH_SPEED = 30
-DASH_DURATION = 0.3
+DASH_SPEED = 40
+DASH_DURATION = 0.2
 DASH_COOLDOWN = 1.0
 
 
@@ -216,7 +216,7 @@ class Player(arcade.Sprite):
 
         self.dust_list.update()
         self.update_texture()
-        self.was_jumping = self.jumping  # Обновляем состояние прыжка
+        self.was_jumping = self.jumping
 
     def draw(self, **kwargs):
         self.dust_list.draw()
@@ -228,7 +228,6 @@ class Player(arcade.Sprite):
                                   self.texture.height * self.scale_y),
             alpha=self.alpha
         )
-        # 2. Визуальный эффект атаки
         if self.attacking:
             textures = self.attack_textures_atack1 if self.attack_type == 1 else self.attack_textures_atack2
             if self.attack_phase < len(textures):
