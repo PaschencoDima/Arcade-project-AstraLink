@@ -5,15 +5,7 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="cf9be97e-6e8b-4442-9335-a56bbb49ae38" name="Changes" comment="">
-      <change afterPath="$PROJECT_DIR$/second_room/images/reversed_spike.png" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/second_room/images/stand3.png" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/second_room/images/stand_1.png" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/second_room/images/stand_2.png" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/Презентация по AstraLink.pptx" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/first_room/drawing_first_room_first_lvl.py" beforeDir="false" afterPath="$PROJECT_DIR$/first_room/drawing_first_room_first_lvl.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/player.py" beforeDir="false" afterPath="$PROJECT_DIR$/player.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/second_room/main_room.py" beforeDir="false" afterPath="$PROJECT_DIR$/second_room/main_room.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
