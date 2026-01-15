@@ -5,7 +5,16 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="cf9be97e-6e8b-4442-9335-a56bbb49ae38" name="Changes" comment="">
+      <change afterPath="$PROJECT_DIR$/second_room/images/underground.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/second_room/sonic.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/first_room/drawing_first_room_first_lvl.py" beforeDir="false" afterPath="$PROJECT_DIR$/first_room/drawing_first_room_first_lvl.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/first_room/robot.py" beforeDir="false" afterPath="$PROJECT_DIR$/first_room/robot.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/game_database.db" beforeDir="false" afterPath="$PROJECT_DIR$/game_database.db" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/second_room/images/scream.png" beforeDir="false" afterPath="$PROJECT_DIR$/second_room/images/scream.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/second_room/images/stand3.png" beforeDir="false" afterPath="$PROJECT_DIR$/second_room/images/stand_3.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/second_room/images/undergronund.png" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/second_room/main_room.py" beforeDir="false" afterPath="$PROJECT_DIR$/second_room/main_room.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -43,13 +52,13 @@
     "RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252": "true",
     "RunOnceActivity.git.unshallow": "true",
     "git-widget-placeholder": "main",
-    "last_opened_file_path": "C:/Users/user/PycharmProjects/Arcade_project_by_CCC"
+    "last_opened_file_path": "C:/Users/user/PycharmProjects/Arcade_project_by_CCC/second_room/images"
   }
 }]]></component>
   <component name="RecentsManager">
     <key name="CopyFile.RECENT_KEYS">
-      <recent name="C:\Users\user\PycharmProjects\Arcade_project_by_CCC" />
       <recent name="C:\Users\user\PycharmProjects\Arcade_project_by_CCC\second_room\images" />
+      <recent name="C:\Users\user\PycharmProjects\Arcade_project_by_CCC" />
       <recent name="C:\Users\user\PycharmProjects\Arcade_project_by_CCC\first_room\images\robot_images" />
       <recent name="C:\Users\user\PycharmProjects\Arcade_project_by_CCC\start_window\images" />
       <recent name="C:\Users\user\PycharmProjects\Arcade_project_by_CCC\first_room\images" />

@@ -85,7 +85,7 @@ class Player(arcade.Sprite):
         self.attack_timer = 0
         self.attack_phase = 0
         self.attack_type = 1
-        self.attack_damage = 40
+        self.attack_damage = 15
         self.attack_total_damage = 0
         self.attack_duration = 0.05
         self.attack_cooldown = 0.3
@@ -124,7 +124,7 @@ class Player(arcade.Sprite):
 
     def update_attack(self, delta_time):
         if self.attacking:
-            self.attack_timer -= delta_time
+            self.attack_timer -= delta_time * 2
             if self.attack_timer <= 0:
                 self.attack_phase += 1
                 self.attack_timer = self.attack_duration
@@ -132,7 +132,7 @@ class Player(arcade.Sprite):
                 max_p = 8 if self.attack_type == 1 else 6
                 if self.attack_phase >= max_p: self.end_attack()
         elif self.attack_timer > 0:
-            self.attack_timer -= delta_time
+            self.attack_timer -= delta_time * 2
 
     def end_attack(self):
         self.attacking = False

@@ -2,6 +2,8 @@ import arcade
 import sys
 import os
 
+from pyglet.event import EVENT_HANDLE_STATE
+
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from player import Player
@@ -50,6 +52,8 @@ class MainRoomWindow(arcade.Window):
         self.walls = None
         self.spikes = None
         self.background_platforms = None
+        self.sonic_boss = None
+        self.sonic_boss_sprites = None
 
         self.physics_engine = None
         self.update_time = 0
@@ -83,8 +87,36 @@ class MainRoomWindow(arcade.Window):
         self.spikes = arcade.SpriteList()
         self.trampolines = arcade.SpriteList()
         self.background_platforms = arcade.SpriteList()
+        self.sonic_boss_sprites = arcade.SpriteList()
 
         self.player = Player(dash_unlocked=True)
+
+        try:
+            from sonic import Sonic
+            self.sonic_boss = Sonic(2000, 110, self.player)
+            self.sonic_boss_sprites.append(self.sonic_boss)
+        except ImportError as e:
+            self.sonic_boss = type('SimpleSonic', (), {})()
+            self.sonic_boss.center_x = 100
+            self.sonic_boss.center_y = 2000
+            self.sonic_boss.active = True
+            self.sonic_boss.health = 500
+            self.sonic_boss.left = 1475
+            self.sonic_boss.right = 1525
+            self.sonic_boss.bottom = 775
+            self.sonic_boss.top = 825
+
+            def simple_update(delta_time):
+                pass
+
+            def take_damage(damage):
+                self.sonic_boss.health -= damage
+                if self.sonic_boss.health <= 0:
+                    self.sonic_boss.active = False
+
+            self.sonic_boss.update = simple_update
+            self.sonic_boss.take_damage = take_damage
+            self.sonic_boss.spikes = arcade.SpriteList()
 
         self.create_platforms()
 
@@ -110,6 +142,7 @@ class MainRoomWindow(arcade.Window):
             (80, 350, self.small_platform, 60, 50, True),
             (280, 450, self.platform, 100, 50, True),
             (480, 550, self.platform, 100, 50, True),
+            (1670, 150, self.platform, 100, 50, True),
         ]
 
         center_wall_data = [
@@ -130,6 +163,24 @@ class MainRoomWindow(arcade.Window):
             (875, 925, self.wall_texture, 50, 50, True),
             (875, 975, self.wall_texture, 50, 50, True),
             (875, 1025, self.wall_texture, 50, 50, True),
+            (875, 1075, self.wall_texture, 50, 50, True),
+            (825, 1075, self.wall_texture, 50, 50, True),
+            (775, 1075, self.wall_texture, 50, 50, True),
+            (725, 1075, self.wall_texture, 50, 50, True),
+            (675, 1075, self.wall_texture, 50, 50, True),
+            (625, 1075, self.wall_texture, 50, 50, True),
+            (575, 1075, self.wall_texture, 50, 50, True),
+            (525, 1075, self.wall_texture, 50, 50, True),
+            (475, 1075, self.wall_texture, 50, 50, True),
+            (425, 1075, self.wall_texture, 50, 50, True),
+            (375, 1075, self.wall_texture, 50, 50, True),
+            (325, 1075, self.wall_texture, 50, 50, True),
+            (275, 1075, self.wall_texture, 50, 50, True),
+            (225, 1075, self.wall_texture, 50, 50, True),
+            (175, 1075, self.wall_texture, 50, 50, True),
+            (125, 1075, self.wall_texture, 50, 50, True),
+            (75, 1075, self.wall_texture, 50, 50, True),
+            (25, 1075, self.wall_texture, 50, 50, True),
         ]
 
         for x, y, texture, width, height, add_collision in platforms_data:
@@ -277,7 +328,6 @@ class MainRoomWindow(arcade.Window):
 
     def on_draw(self):
         self.clear()
-
         self.world_camera.use()
 
         arcade.draw_texture_rect(
@@ -296,6 +346,23 @@ class MainRoomWindow(arcade.Window):
         self.trampolines.draw()
         self.player.draw()
 
+        if self.player.attacking:
+            hitbox = self.player.get_attack_hitbox()
+            if hitbox:
+                left, right, bottom, top = hitbox
+                center_x = (left + right) / 2
+                center_y = (bottom + top) / 2
+                arcade.draw_circle_filled(center_x, center_y, 30, (255, 0, 0, 150))
+
+        if self.sonic_boss and hasattr(self.sonic_boss, 'active') and self.sonic_boss.active:
+            if hasattr(self.sonic_boss, 'spikes'):
+                self.sonic_boss.spikes.draw()
+
+            self.sonic_boss_sprites.draw()
+
+            if hasattr(self.sonic_boss, 'draw_health_bar'):
+                self.sonic_boss.draw_health_bar()
+
         self.gui_camera.use()
 
     def on_update(self, delta_time):
@@ -303,6 +370,24 @@ class MainRoomWindow(arcade.Window):
 
         self.player.update(delta_time)
         self.physics_engine.update()
+        self.sonic_boss_sprites.update()
+
+        if self.sonic_boss and hasattr(self.sonic_boss, 'active') and self.sonic_boss.active:
+            if hasattr(self.sonic_boss, 'update'):
+                self.sonic_boss.update(delta_time)
+
+            if self.player.attacking:
+                hitbox = self.player.get_attack_hitbox()
+                if hitbox and hasattr(self.sonic_boss, 'take_damage'):
+                    attack_left, attack_right, attack_bottom, attack_top = hitbox
+                    if (attack_right > self.sonic_boss.left and
+                            attack_left < self.sonic_boss.right and
+                            attack_top > self.sonic_boss.bottom and
+                            attack_bottom < self.sonic_boss.top):
+
+                        damage = self.player.deal_damage()
+                        if damage > 0:
+                            self.sonic_boss.take_damage(damage)
 
         was_on_ground = self.player.on_ground
         self.player.on_ground = self.physics_engine.can_jump()
@@ -329,6 +414,19 @@ class MainRoomWindow(arcade.Window):
         trampoline_hit_list = arcade.check_for_collision_with_list(self.player, self.trampolines)
         if trampoline_hit_list and self.player.change_y < 0:
             self.player.change_y = PLAYER_JUMP_SPEED * 1.5
+
+        if self.sonic_boss and hasattr(self.sonic_boss, 'spikes') and self.sonic_boss.active:
+            spike_hit_list = arcade.check_for_collision_with_list(self.player, self.sonic_boss.spikes)
+            if spike_hit_list:
+                self.player.take_damage(
+                    self.sonic_boss.spike_damage if hasattr(self.sonic_boss, 'spike_damage') else 10)
+                for spike in spike_hit_list:
+                    spike.remove_from_sprite_lists()
+
+        if self.sonic_boss and hasattr(self.sonic_boss, 'active') and self.sonic_boss.active:
+            if arcade.check_for_collision(self.player, self.sonic_boss):
+                if hasattr(self.player, 'take_damage') and hasattr(self.sonic_boss, 'contact_damage'):
+                    self.player.take_damage(self.sonic_boss.contact_damage)
 
         self.update_camera_position(delta_time)
 
@@ -408,15 +506,15 @@ class MainRoomWindow(arcade.Window):
                 self.player.jumping = True
         elif key == arcade.key.LEFT or key == arcade.key.A:
             self.player.change_x = -PLAYER_MOVEMENT_SPEED
-            self.player.set_direction(False)
+            self.player.set_direction(True)
             self.player.dash_direction = -1
         elif key == arcade.key.RIGHT or key == arcade.key.D:
             self.player.change_x = PLAYER_MOVEMENT_SPEED
-            self.player.set_direction(True)
+            self.player.set_direction(False)
             self.player.dash_direction = 1
         elif key == arcade.key.Q:
             self.player.activate_dash()
-        elif key == arcade.key.Z or key == arcade.key.L:
+        elif key == arcade.key.Z or key == arcade.key.E:
             if self.player.can_attack():
                 self.player.start_attack()
         elif key == arcade.key.ESCAPE:

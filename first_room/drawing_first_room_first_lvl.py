@@ -333,8 +333,8 @@ class GameWindow(arcade.Window):
 
             robot.facing_right = True
             robot.scale = 2.0
-            robot.health = 1500
-            robot.max_health = 1500
+            robot.health = 500
+            robot.max_health = 500
 
             self.robots_list.append(robot)
             self.arena_robots.append(robot)
@@ -350,8 +350,6 @@ class GameWindow(arcade.Window):
 
             self.arena_robots_spawned = True
             self.arena_start_time = time.time()
-            self.arena_message = "Арена активирована! Победите роботов!"
-            self.arena_message_timer = 3.0
         except Exception:
             pass
 

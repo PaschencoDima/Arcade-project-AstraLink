@@ -16,8 +16,8 @@ class Robot(arcade.Sprite):
 
         self.active = True
         self.spawned = False if is_arena_robot else True
-        self.health = 1000
-        self.max_health = 1000
+        self.health = 300
+        self.max_health = 300
         self.bullet_damage = 25
         self.contact_damage = 20
 
@@ -39,7 +39,7 @@ class Robot(arcade.Sprite):
         self.shoot_cooldown = 2.5
 
         self.dash_speed = 6
-        self.min_dist_to_player = 100
+        self.min_dist_to_player = 300
 
         self.platform_left = x - 200
         self.platform_right = x + 200
@@ -67,7 +67,7 @@ class Robot(arcade.Sprite):
 
     def spawn(self, x, y):
         self.center_x = x
-        self.center_y = y + 300  # Начинаем выше цели
+        self.center_y = y + 300
         self.target_y = y
         self.falling = True
         self.spawned = True
