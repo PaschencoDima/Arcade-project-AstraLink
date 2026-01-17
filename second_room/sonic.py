@@ -1,6 +1,7 @@
 import arcade
 import math
 import os
+import random
 
 
 class Sonic(arcade.Sprite):
@@ -25,16 +26,32 @@ class Sonic(arcade.Sprite):
         self.texture_index = 0
         self.emerging_speed = 150
 
+        self.walking_speed = 2.5
+        self.walk_range = 300
+        self.start_x = x
+        self.direction = 1
+        self.is_facing_right = True
+
+        self.ball_attack_distance = 500
+        self.ball_start_x = 0
+        self.ball_target_x = 0
+        self.ball_speed = 2
+        self.ball_max_speed = 8
+        self.ball_acceleration = 1.5
+        self.ball_attacking = False
+        self.ball_damage = 40
+
         self.spikes = arcade.SpriteList()
         self.attack_timer = 0
         self.attack_cooldown = 3.0
 
         self.textures_dict = {}
         self.scales_dict = {
-            "underground": 0.8,
-            "standing": 1.0,
-            "scream": 1.2,
-            "rolling": 0.9,
+            "UNDERGROUND": 0.3,
+            "EMERGING": 0.3,
+            "STANDING": 0.5,
+            "SCREAM": 0.2,
+            "BALL_ATTACK": 0.15,
             "DEAD": 0.5
         }
         self.default_scale = 1.0
@@ -42,8 +59,9 @@ class Sonic(arcade.Sprite):
         self.load_textures()
 
         self.initial_y = y
-        self.center_y = y - 100
-        self.scale = self.scales_dict["underground"]
+        self.center_y = y - 50
+        self.scale = self.scales_dict["UNDERGROUND"]
+        self.angle = 0
 
     def load_textures(self):
         main_path = "images/"
@@ -53,48 +71,135 @@ class Sonic(arcade.Sprite):
             texture_path = f"{main_path}stand_{i}.png"
             if os.path.exists(texture_path):
                 texture = arcade.load_texture(texture_path)
-                self.textures_dict["standing"].append(texture)
+                self.textures_dict["standing"].append({
+                    "right": texture,
+                    "left": texture.flip_left_right()
+                })
             else:
-                self.textures_dict["standing"].append(
-                    arcade.make_soft_circle_texture(30,
-                                                    [arcade.color.BLUE, arcade.color.DARK_BLUE,
-                                                     arcade.color.LIGHT_BLUE][i - 1])
-                )
+                texture_right = arcade.make_soft_circle_texture(30, [arcade.color.BLUE, arcade.color.DARK_BLUE,
+                                                                     arcade.color.LIGHT_BLUE][i - 1])
+                texture_left = texture_right
+                self.textures_dict["standing"].append({
+                    "right": texture_right,
+                    "left": texture_left
+                })
 
         underground_path = f"{main_path}underground.png"
         if os.path.exists(underground_path):
-            self.textures_dict["underground"] = arcade.load_texture(underground_path)
+            texture = arcade.load_texture(underground_path)
+            self.textures_dict["underground"] = {
+                "right": texture,
+                "left": texture.flip_left_right()
+            }
         else:
-            self.textures_dict["underground"] = arcade.make_soft_circle_texture(40, arcade.color.BROWN)
+            texture = arcade.make_soft_circle_texture(40, arcade.color.BROWN)
+            self.textures_dict["underground"] = {
+                "right": texture,
+                "left": texture
+            }
 
         scream_path = f"{main_path}scream.png"
         if os.path.exists(scream_path):
-            self.textures_dict["scream"] = arcade.load_texture(scream_path)
+            texture = arcade.load_texture(scream_path)
+            self.textures_dict["scream"] = {
+                "right": texture,
+                "left": texture.flip_left_right()
+            }
         else:
-            self.textures_dict["scream"] = arcade.make_soft_circle_texture(35, arcade.color.RED)
+            texture = arcade.make_soft_circle_texture(35, arcade.color.RED)
+            self.textures_dict["scream"] = {
+                "right": texture,
+                "left": texture
+            }
 
         ball_path = f"{main_path}ball.png"
         if os.path.exists(ball_path):
-            self.textures_dict["rolling"] = arcade.load_texture(ball_path)
+            texture = arcade.load_texture(ball_path)
+            self.textures_dict["rolling"] = {
+                "right": texture,
+                "left": texture.flip_left_right()
+            }
         else:
-            self.textures_dict["rolling"] = arcade.make_soft_circle_texture(25, arcade.color.DARK_BLUE)
+            texture = arcade.make_soft_circle_texture(25, arcade.color.DARK_BLUE)
+            self.textures_dict["rolling"] = {
+                "right": texture,
+                "left": texture
+            }
 
-        self.texture = self.textures_dict["underground"]
+        self.texture = self.textures_dict["underground"]["right"]
+
+    def get_texture_for_state(self):
+        direction_key = "right" if self.is_facing_right else "left"
+
+        if self.state == "STANDING":
+            return self.textures_dict["standing"][self.texture_index][direction_key]
+        elif self.state == "UNDERGROUND":
+            return self.textures_dict["underground"][direction_key]
+        elif self.state == "EMERGING":
+            return self.textures_dict["underground"][direction_key]
+        elif self.state == "SCREAM":
+            return self.textures_dict["scream"][direction_key]
+        elif self.state == "BALL_ATTACK":
+            return self.textures_dict["rolling"][direction_key]
+        elif self.state == "DEAD":
+            return self.texture
+
+        return self.texture
 
     def set_scale_for_state(self, state):
-        scale_map = {
-            "UNDERGROUND": 0.15,
-            "EMERGING": 0.2,
-            "STANDING": 0.5,
-            "SCREAM": 0.2,
-            "ROLLING": 0.2,
-            "DEAD": 0.5
-        }
-
-        if state in scale_map:
-            self.scale = scale_map[state]
+        if state in self.scales_dict:
+            self.scale = self.scales_dict[state]
         else:
             self.scale = self.default_scale
+
+    def start_ball_attack(self):
+        if self.state == "DEAD" or self.ball_attacking:
+            return
+
+        self.state = "BALL_ATTACK"
+        self.ball_attacking = True
+        self.animation_timer = 0
+
+        if self.player and self.player.center_x > self.center_x:
+            self.direction = 1
+            self.is_facing_right = True
+        else:
+            self.direction = -1
+            self.is_facing_right = False
+
+        self.ball_start_x = self.center_x
+        self.ball_target_x = self.center_x + (self.ball_attack_distance * self.direction)
+
+        self.ball_speed = 4
+        self.animation_timer = 0
+        self.angle = 0
+
+        self.texture = self.get_texture_for_state()
+        self.set_scale_for_state("BALL_ATTACK")
+
+    def update_ball_attack(self, delta_time):
+        if not self.ball_attacking:
+            return False
+
+        self.ball_speed = min(self.ball_speed + self.ball_acceleration * delta_time * 60, self.ball_max_speed)
+
+        self.center_x += self.ball_speed * self.direction
+
+        self.angle += 20 * self.direction * self.ball_speed * delta_time
+
+        distance_traveled = abs(self.center_x - self.ball_start_x)
+
+        if distance_traveled >= self.ball_attack_distance:
+            self.ball_attacking = False
+            self.state = "STANDING"
+            self.animation_timer = 0
+            self.texture_index = 0
+            self.angle = 0
+            self.texture = self.get_texture_for_state()
+            self.set_scale_for_state("STANDING")
+            return True
+
+        return False
 
     def spawn_spikes(self):
         if self.state == "DEAD":
@@ -102,7 +207,7 @@ class Sonic(arcade.Sprite):
 
         self.state = "SCREAM"
         self.animation_timer = 0
-        self.texture = self.textures_dict["scream"]
+        self.texture = self.get_texture_for_state()
         self.set_scale_for_state("SCREAM")
 
         self.spikes.clear()
@@ -120,7 +225,7 @@ class Sonic(arcade.Sprite):
                 spike.texture = spike_texture
                 spike.scale = 0.1
             else:
-                spike = arcade.SpriteSolidColor(15, 15, arcade.color.RED)
+                spike = arcade.SpriteSolidColor(25, 25, arcade.color.RED)
 
             spike.center_x = self.center_x
             spike.center_y = self.center_y
@@ -136,11 +241,51 @@ class Sonic(arcade.Sprite):
 
             self.spikes.append(spike)
 
-    def update_animation(self, delta_time ):
+    def walk_patrol(self):
+        if self.state not in ["STANDING", "SCREAM"]:
+            return
+
+        left_bound = self.start_x - self.walk_range / 2
+        right_bound = self.start_x + self.walk_range / 2
+
+        old_direction = self.is_facing_right
+
+        if self.center_x >= right_bound:
+            self.direction = -1
+            self.is_facing_right = False
+        elif self.center_x <= left_bound:
+            self.direction = 1
+            self.is_facing_right = True
+
+        self.center_x += self.walking_speed * self.direction
+
+        if old_direction != self.is_facing_right:
+            self.texture = self.get_texture_for_state()
+
+    def face_player(self):
+        if not self.player:
+            return
+
+        distance_to_player = abs(self.center_x - self.player.center_x)
+
+        if distance_to_player < 400 and self.state == "STANDING":
+            old_direction = self.is_facing_right
+
+            if self.player.center_x < self.center_x:
+                self.is_facing_right = False
+                self.direction = -1
+            else:
+                self.is_facing_right = True
+                self.direction = 1
+
+            if old_direction != self.is_facing_right:
+                self.texture = self.get_texture_for_state()
+
+    def update_animation(self, delta_time):
         self.animation_timer += delta_time
 
         if self.state == "UNDERGROUND":
-            self.texture = self.textures_dict["underground"]
+            self.texture = self.get_texture_for_state()
             self.set_scale_for_state("UNDERGROUND")
             self.center_y += self.emerging_speed * delta_time
             if self.center_y >= self.initial_y:
@@ -150,32 +295,38 @@ class Sonic(arcade.Sprite):
                 self.set_scale_for_state("EMERGING")
 
         elif self.state == "EMERGING":
-            self.texture = self.textures_dict["underground"]
+            self.texture = self.get_texture_for_state()
+            self.set_scale_for_state("EMERGING")
+            if self.center_y < self.initial_y + 20:
+                self.center_y += self.emerging_speed * delta_time * 0.5
             if self.animation_timer > 1.0:
                 self.state = "STANDING"
                 self.animation_timer = 0
-                self.texture = self.textures_dict["standing"][0]
+                self.texture_index = 0
+                self.texture = self.get_texture_for_state()
                 self.set_scale_for_state("STANDING")
 
         elif self.state == "STANDING":
+            self.set_scale_for_state("STANDING")
             if self.animation_timer > 0.2:
                 self.animation_timer = 0
                 self.texture_index = (self.texture_index + 1) % len(self.textures_dict["standing"])
-                self.texture = self.textures_dict["standing"][self.texture_index]
+                self.texture = self.get_texture_for_state()
 
         elif self.state == "SCREAM":
-            self.texture = self.textures_dict["scream"]
+            self.texture = self.get_texture_for_state()
             self.set_scale_for_state("SCREAM")
 
             if self.animation_timer > 1.0:
                 self.state = "STANDING"
                 self.animation_timer = 0
                 self.texture_index = 0
-                self.texture = self.textures_dict["standing"][0]
+                self.texture = self.get_texture_for_state()
                 self.set_scale_for_state("STANDING")
 
         elif self.state == "DEAD":
-            self.alpha = max(0, self.alpha - 100 * delta_time)
+            self.set_scale_for_state("DEAD")
+            self.alpha = max(0, self.alpha - 300 * delta_time)
             for spike in self.spikes:
                 spike.alpha = max(0, spike.alpha - 150 * delta_time)
             if self.alpha <= 0:
@@ -189,15 +340,27 @@ class Sonic(arcade.Sprite):
         self.spikes.update()
         self.update_animation(delta_time)
 
-        if self.state == "STANDING":
+        if self.state == "BALL_ATTACK":
+            self.update_ball_attack(delta_time)
+        elif self.state == "STANDING":
+            self.walk_patrol()
+            self.face_player()
+
             self.attack_timer += delta_time
             if self.attack_timer >= self.attack_cooldown:
-                self.spawn_spikes()
+                if self.player and random.random() < 0.5:
+                    distance_to_player = abs(self.center_x - self.player.center_x)
+                    if distance_to_player < 600:
+                        self.start_ball_attack()
+                    else:
+                        self.spawn_spikes()
+                else:
+                    self.spawn_spikes()
                 self.attack_timer = 0
 
-        screen_width = 1600
-        screen_height = 900
-        margin = 100
+        screen_width = 3200
+        screen_height = 1800
+        margin = 500
 
         for spike in self.spikes:
             if (spike.center_x < -margin or spike.center_x > screen_width + margin or
@@ -205,7 +368,11 @@ class Sonic(arcade.Sprite):
                 spike.remove_from_sprite_lists()
 
         if self.player:
-            if arcade.check_for_collision(self, self.player):
+            if self.state == "BALL_ATTACK" and arcade.check_for_collision(self, self.player):
+                if hasattr(self.player, 'take_damage'):
+                    self.player.take_damage(self.ball_damage)
+
+            elif self.state != "BALL_ATTACK" and arcade.check_for_collision(self, self.player):
                 if hasattr(self.player, 'take_damage'):
                     self.player.take_damage(self.contact_damage)
 
@@ -278,16 +445,22 @@ class Sonic(arcade.Sprite):
             self.animation_timer = 0
             self.set_scale_for_state("DEAD")
             self.alpha = 255
+            self.ball_attacking = False
 
     def reset(self):
         self.active = True
         self.health = self.max_health
         self.state = "UNDERGROUND"
+        self.center_x = self.start_x
         self.center_y = self.initial_y - 100
         self.animation_timer = 0
         self.texture_index = 0
         self.attack_timer = 0
+        self.direction = 1
+        self.is_facing_right = True
+        self.ball_attacking = False
+        self.angle = 0
         self.spikes.clear()
-        self.texture = self.textures_dict["underground"]
-        self.set_scale_for_state("UNDERGROUND")
+        self.texture = self.get_texture_for_state()
+        self.set_scale_for_state("UNDERGROUND")  # Всегда один масштаб
         self.alpha = 255

@@ -134,7 +134,7 @@ class Robot(arcade.Sprite):
 
         if self.falling:
             self.center_y -= self.fall_speed
-            if self.center_y <= self.target_y:
+            if self.center_y <= self.target_y: 
                 self.center_y = self.target_y
                 self.falling = False
                 self.state = "land"

@@ -2,8 +2,6 @@ import arcade
 import sys
 import os
 
-from pyglet.event import EVENT_HANDLE_STATE
-
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from player import Player
@@ -48,12 +46,13 @@ class MainRoomWindow(arcade.Window):
         )
 
         self.player = None
-        self.platforms = None
-        self.walls = None
-        self.spikes = None
-        self.background_platforms = None
+        self.platforms = arcade.SpriteList()
+        self.walls = arcade.SpriteList()
+        self.spikes = arcade.SpriteList()
+        self.trampolines = arcade.SpriteList()
+        self.background_platforms = arcade.SpriteList()
+        self.sonic_boss_sprites = arcade.SpriteList()
         self.sonic_boss = None
-        self.sonic_boss_sprites = None
 
         self.physics_engine = None
         self.update_time = 0
@@ -71,6 +70,8 @@ class MainRoomWindow(arcade.Window):
         if self.user_id:
             update_current_room(self.user_id, "main_room")
 
+        self.health_text = None
+
         self.setup()
 
     def setup(self):
@@ -82,6 +83,7 @@ class MainRoomWindow(arcade.Window):
         self.floor_texture = arcade.load_texture("images/floor.png")
         self.spike_texture = arcade.load_texture("images/spike.png")
         self.reversed_spike_texture = arcade.load_texture("images/reversed_spike.png")
+
         self.platforms = arcade.SpriteList()
         self.walls = arcade.SpriteList()
         self.spikes = arcade.SpriteList()
@@ -90,33 +92,7 @@ class MainRoomWindow(arcade.Window):
         self.sonic_boss_sprites = arcade.SpriteList()
 
         self.player = Player(dash_unlocked=True)
-
-        try:
-            from sonic import Sonic
-            self.sonic_boss = Sonic(2000, 110, self.player)
-            self.sonic_boss_sprites.append(self.sonic_boss)
-        except ImportError as e:
-            self.sonic_boss = type('SimpleSonic', (), {})()
-            self.sonic_boss.center_x = 100
-            self.sonic_boss.center_y = 2000
-            self.sonic_boss.active = True
-            self.sonic_boss.health = 500
-            self.sonic_boss.left = 1475
-            self.sonic_boss.right = 1525
-            self.sonic_boss.bottom = 775
-            self.sonic_boss.top = 825
-
-            def simple_update(delta_time):
-                pass
-
-            def take_damage(damage):
-                self.sonic_boss.health -= damage
-                if self.sonic_boss.health <= 0:
-                    self.sonic_boss.active = False
-
-            self.sonic_boss.update = simple_update
-            self.sonic_boss.take_damage = take_damage
-            self.sonic_boss.spikes = arcade.SpriteList()
+        self.sonic_boss = None
 
         self.create_platforms()
 
@@ -124,6 +100,22 @@ class MainRoomWindow(arcade.Window):
             self.player,
             self.platforms,
             gravity_constant=GRAVITY
+        )
+
+        bar_width = 300
+        bar_x = 20
+        bar_y = SCREEN_HEIGHT - 40
+
+        self.health_text = arcade.Text(
+            "HP: 100/100",
+            bar_x + bar_width / 2,
+            bar_y,
+            arcade.color.WHITE,
+            18,
+            bold=True,
+            align="center",
+            anchor_x="center",
+            anchor_y="center"
         )
 
         self.world_camera.position = (self.player.center_x, self.player.center_y)
@@ -328,6 +320,7 @@ class MainRoomWindow(arcade.Window):
 
     def on_draw(self):
         self.clear()
+
         self.world_camera.use()
 
         arcade.draw_texture_rect(
@@ -344,50 +337,102 @@ class MainRoomWindow(arcade.Window):
         self.walls.draw()
         self.spikes.draw()
         self.trampolines.draw()
+
+        if self.sonic_boss:
+            if hasattr(self.sonic_boss, 'active') and self.sonic_boss.active:
+                if hasattr(self.sonic_boss, 'spikes'):
+                    self.sonic_boss.spikes.draw()
+
+                self.sonic_boss_sprites.draw()
+
         self.player.draw()
 
-        if self.player.attacking:
-            hitbox = self.player.get_attack_hitbox()
-            if hitbox:
-                left, right, bottom, top = hitbox
-                center_x = (left + right) / 2
-                center_y = (bottom + top) / 2
-                arcade.draw_circle_filled(center_x, center_y, 30, (255, 0, 0, 150))
-
         if self.sonic_boss and hasattr(self.sonic_boss, 'active') and self.sonic_boss.active:
-            if hasattr(self.sonic_boss, 'spikes'):
-                self.sonic_boss.spikes.draw()
-
-            self.sonic_boss_sprites.draw()
-
             if hasattr(self.sonic_boss, 'draw_health_bar'):
                 self.sonic_boss.draw_health_bar()
 
         self.gui_camera.use()
+        self.draw_health_bar()
+
+    def draw_health_bar(self):
+        bar_width = 300
+        bar_height = 35
+        bar_x = 20
+        bar_y = SCREEN_HEIGHT - 40
+
+        health_ratio = max(0, self.player.hp / self.player.max_hp)
+
+        arcade.draw_rect_filled(arcade.rect.XYWH(
+            bar_x + bar_width / 2,
+            bar_y,
+            bar_width + 6,
+            bar_height + 6),
+            arcade.color.BLACK
+        )
+
+        arcade.draw_rect_filled(arcade.rect.XYWH(
+            bar_x + bar_width / 2,
+            bar_y,
+            bar_width,
+            bar_height),
+            arcade.color.DARK_RED
+        )
+
+        if health_ratio > 0:
+            arcade.draw_rect_filled(arcade.rect.XYWH(
+                bar_x + (bar_width * health_ratio) / 2,
+                bar_y,
+                bar_width * health_ratio,
+                bar_height),
+                arcade.color.GREEN
+            )
+
+        self.health_text.text = f"HP: {int(self.player.hp)}/{self.player.max_hp}"
+        self.health_text.x = bar_x + bar_width / 2
+        self.health_text.y = bar_y
+        self.health_text.draw()
 
     def on_update(self, delta_time):
         self.update_time = delta_time
 
         self.player.update(delta_time)
+
         self.physics_engine.update()
-        self.sonic_boss_sprites.update()
+
+        if self.player.center_x >= 1500 and self.sonic_boss is None:
+            try:
+                from sonic import Sonic
+                self.sonic_boss = Sonic(2000, 80, self.player)
+                self.sonic_boss_sprites.append(self.sonic_boss)
+            except ImportError as e:
+                self.sonic_boss = type('SimpleSonic', (), {})()
+                self.sonic_boss.center_x = 105
+                self.sonic_boss.center_y = 2000
+                self.sonic_boss.active = True
+                self.sonic_boss.health = 500
+                self.sonic_boss.left = 1475
+                self.sonic_boss.right = 1525
+                self.sonic_boss.bottom = 775
+                self.sonic_boss.top = 825
+
+                def simple_update(delta_time):
+                    pass
+
+                def take_damage(damage):
+                    self.sonic_boss.health -= damage
+                    if self.sonic_boss.health <= 0:
+                        self.sonic_boss.active = False
+
+                self.sonic_boss.update = simple_update
+                self.sonic_boss.take_damage = take_damage
+                self.sonic_boss.spikes = arcade.SpriteList()
 
         if self.sonic_boss and hasattr(self.sonic_boss, 'active') and self.sonic_boss.active:
             if hasattr(self.sonic_boss, 'update'):
                 self.sonic_boss.update(delta_time)
 
             if self.player.attacking:
-                hitbox = self.player.get_attack_hitbox()
-                if hitbox and hasattr(self.sonic_boss, 'take_damage'):
-                    attack_left, attack_right, attack_bottom, attack_top = hitbox
-                    if (attack_right > self.sonic_boss.left and
-                            attack_left < self.sonic_boss.right and
-                            attack_top > self.sonic_boss.bottom and
-                            attack_bottom < self.sonic_boss.top):
-
-                        damage = self.player.deal_damage()
-                        if damage > 0:
-                            self.sonic_boss.take_damage(damage)
+                self.check_player_attack()
 
         was_on_ground = self.player.on_ground
         self.player.on_ground = self.physics_engine.can_jump()
@@ -431,8 +476,8 @@ class MainRoomWindow(arcade.Window):
         self.update_camera_position(delta_time)
 
     def reset_player(self):
-        self.player.center_x = 0
-        self.player.center_y = 950
+        self.player.center_x = 190
+        self.player.center_y = 870
         self.player.change_x = 0
         self.player.change_y = 0
         self.player.hp = PLAYER_MAX_HP
@@ -514,7 +559,7 @@ class MainRoomWindow(arcade.Window):
             self.player.dash_direction = 1
         elif key == arcade.key.Q:
             self.player.activate_dash()
-        elif key == arcade.key.Z or key == arcade.key.E:
+        elif key == arcade.key.Z or key == arcade.key.L:
             if self.player.can_attack():
                 self.player.start_attack()
         elif key == arcade.key.ESCAPE:
@@ -536,6 +581,30 @@ class MainRoomWindow(arcade.Window):
                 self.player.change_x = 0
         elif key == arcade.key.UP or key == arcade.key.W or key == arcade.key.SPACE:
             self.player.jumping = False
+
+    def on_mouse_press(self, x, y, button, modifiers):
+        if button == arcade.MOUSE_BUTTON_LEFT:
+            if self.player.can_attack():
+                self.player.start_attack()
+
+    def check_player_attack(self):
+        if not self.player.attacking or not self.sonic_boss:
+            return
+
+        hitbox = self.player.get_attack_hitbox()
+        if not hitbox or not hasattr(self.sonic_boss, 'take_damage'):
+            return
+
+        attack_left, attack_right, attack_bottom, attack_top = hitbox
+
+        if (attack_right > self.sonic_boss.left and
+                attack_left < self.sonic_boss.right and
+                attack_top > self.sonic_boss.bottom and
+                attack_bottom < self.sonic_boss.top):
+
+            damage = self.player.deal_damage()
+            if damage > 0:
+                self.sonic_boss.take_damage(damage)
 
 
 def start_game():

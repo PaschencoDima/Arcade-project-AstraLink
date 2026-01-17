@@ -19,8 +19,8 @@ PLAYER_JUMP_SPEED = 17
 GRAVITY = 1
 PLAYER_MAX_HP = 100
 
-DASH_SPEED = 30
-DASH_DURATION = 0.3
+DASH_SPEED = 40
+DASH_DURATION = 0.2
 DASH_COOLDOWN = 1.0
 
 
@@ -255,15 +255,25 @@ class MyGame(arcade.Window):
             anchor_y="center"
         )
 
-        self.hp_text = arcade.Text(
-            "",
-            0, 0,
-            arcade.color.GREEN,
-            16,
+        bar_width = 300
+        bar_x = 20
+        bar_y = SCREEN_HEIGHT - 40
+
+        self.health_text = arcade.Text(
+            "HP: 100/100",
+            bar_x + bar_width / 2,
+            bar_y,
+            arcade.color.WHITE,
+            18,
+            bold=True,
             align="center",
             anchor_x="center",
             anchor_y="center"
         )
+
+        # HP плашка параметры
+        self.health_bar_width = 200
+        self.health_bar_height = 20
 
         self.user_id = get_current_user()
         self.dash_unlocked = False
@@ -449,50 +459,46 @@ class MyGame(arcade.Window):
 
         self.dash_powerup.draw_dash_image(SCREEN_WIDTH, SCREEN_HEIGHT)
 
-        if self.player.dash_cooldown_timer > 0:
-            cooldown_percent = self.player.dash_cooldown_timer / DASH_COOLDOWN
-            self.dash_cooldown_text.text = f"Dash: {cooldown_percent * 100:.0f}%"
-            self.dash_cooldown_text.x = SCREEN_WIDTH // 2
-            self.dash_cooldown_text.y = SCREEN_HEIGHT - 50
-            self.dash_cooldown_text.draw()
+        # Отрисовка плашки HP
+        self.draw_health_bar()
 
-        hp_color = arcade.color.GREEN
-        if self.player.hp < 30:
-            hp_color = arcade.color.RED
-        elif self.player.hp < 60:
-            hp_color = arcade.color.YELLOW
+    def draw_health_bar(self):
+        bar_width = 300
+        bar_height = 35
+        bar_x = 20
+        bar_y = SCREEN_HEIGHT - 40
 
-        self.hp_text.text = f"HP: {int(self.player.hp)}/{self.player.max_hp}"
-        self.hp_text.color = hp_color
-        self.hp_text.x = 100
-        self.hp_text.y = SCREEN_HEIGHT - 50
-        self.hp_text.draw()
-
-        hp_width = 200
-        hp_height = 20
-        hp_x = 100
-        hp_y = SCREEN_HEIGHT - 80
+        health_ratio = max(0, self.player.hp / self.player.max_hp)
 
         arcade.draw_rect_filled(arcade.rect.XYWH(
-            hp_x, hp_y,
-            hp_width, hp_height),
+            bar_x + bar_width / 2,
+            bar_y,
+            bar_width + 6,
+            bar_height + 6),
             arcade.color.BLACK
         )
 
-        hp_percentage = self.player.hp / self.player.max_hp
-        current_hp_width = hp_width * hp_percentage
-
         arcade.draw_rect_filled(arcade.rect.XYWH(
-            hp_x - (hp_width - current_hp_width) / 2, hp_y,
-            current_hp_width, hp_height),
-            hp_color
+            bar_x + bar_width / 2,
+            bar_y,
+            bar_width,
+            bar_height),
+            arcade.color.DARK_RED
         )
 
-        arcade.draw_rect_outline(arcade.rect.XYWH(
-            hp_x, hp_y,
-            hp_width, hp_height),
-            arcade.color.WHITE, 2
-        )
+        if health_ratio > 0:
+            arcade.draw_rect_filled(arcade.rect.XYWH(
+                bar_x + (bar_width * health_ratio) / 2,
+                bar_y,
+                bar_width * health_ratio,
+                bar_height),
+                arcade.color.GREEN
+            )
+
+        self.health_text.text = f"HP: {int(self.player.hp)}/{self.player.max_hp}"
+        self.health_text.x = bar_x + bar_width / 2
+        self.health_text.y = bar_y
+        self.health_text.draw()
 
     def on_update(self, delta_time):
         if self.dash_unlocked:

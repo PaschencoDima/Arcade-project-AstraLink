@@ -23,8 +23,8 @@ CAMERA_LERP = 0.12
 DEAD_ZONE_W = int(SCREEN_WIDTH * 0.35 / 3)
 DEAD_ZONE_H = int(SCREEN_HEIGHT * 0.45 / 3)
 
-DASH_SPEED = 30
-DASH_DURATION = 0.3
+DASH_SPEED = 40
+DASH_DURATION = 0.2
 DASH_COOLDOWN = 1.0
 
 GEYSER_DAMAGE = 30
@@ -249,6 +249,10 @@ class GameWindow(arcade.Window):
 
         self.robots_list = arcade.SpriteList()
 
+        # HP плашка параметры
+        self.health_bar_width = 200
+        self.health_bar_height = 20
+
         self.setup()
 
     def setup(self):
@@ -271,6 +275,22 @@ class GameWindow(arcade.Window):
         self.dust_particles = arcade.SpriteList()
         self.geysers = arcade.SpriteList()
         self.robots_list = arcade.SpriteList()
+
+        bar_width = 300
+        bar_x = 20
+        bar_y = SCREEN_HEIGHT - 40
+
+        self.health_text = arcade.Text(
+            "HP: 100/100",
+            bar_x + bar_width / 2,
+            bar_y,
+            arcade.color.WHITE,
+            18,
+            bold=True,
+            align="center",
+            anchor_x="center",
+            anchor_y="center"
+        )
 
         self.dash_cooldown_text = arcade.Text(
             "",
@@ -358,6 +378,9 @@ class GameWindow(arcade.Window):
             return
 
         if self.arena_active or self.arena_completed:
+            return
+
+        if self.player.center_x <  880 * 2:
             return
 
         arena_platforms = [
@@ -673,6 +696,9 @@ class GameWindow(arcade.Window):
 
         self.gui_camera.use()
 
+        # Отрисовка плашки HP
+        self.draw_health_bar()
+
         if self.player.dash_cooldown_timer > 0:
             cooldown_percent = self.player.dash_cooldown_timer / DASH_COOLDOWN
             self.dash_cooldown_text.text = f"Dash: {cooldown_percent * 100:.0f}%"
@@ -686,6 +712,44 @@ class GameWindow(arcade.Window):
                 10000, 10000),
                 (0, 0, 0, int(self.transition_alpha))
             )
+
+    def draw_health_bar(self):
+        bar_width = 300
+        bar_height = 35
+        bar_x = 20
+        bar_y = SCREEN_HEIGHT - 40
+
+        health_ratio = max(0, self.player.hp / self.player.max_hp)
+
+        arcade.draw_rect_filled(arcade.rect.XYWH(
+            bar_x + bar_width / 2,
+            bar_y,
+            bar_width + 6,
+            bar_height + 6),
+            arcade.color.BLACK
+        )
+
+        arcade.draw_rect_filled(arcade.rect.XYWH(
+            bar_x + bar_width / 2,
+            bar_y,
+            bar_width,
+            bar_height),
+            arcade.color.DARK_RED
+        )
+
+        if health_ratio > 0:
+            arcade.draw_rect_filled(arcade.rect.XYWH(
+                bar_x + (bar_width * health_ratio) / 2,
+                bar_y,
+                bar_width * health_ratio,
+                bar_height),
+                arcade.color.GREEN
+            )
+
+        self.health_text.text = f"HP: {int(self.player.hp)}/{self.player.max_hp}"
+        self.health_text.x = bar_x + bar_width / 2
+        self.health_text.y = bar_y
+        self.health_text.draw()
 
     def on_update(self, delta_time):
         self.update_time = delta_time
@@ -926,4 +990,4 @@ def start_game():
 
 
 if __name__ == "__main__":
-    start_game() 
+    start_game()
