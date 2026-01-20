@@ -306,10 +306,17 @@ class MyGame(arcade.Window):
         self.background_platforms = arcade.SpriteList()
         self.dust_particles = arcade.SpriteList()
 
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        original_cwd = os.getcwd()
+
+        parent_dir = os.path.dirname(script_dir)
+        os.chdir(parent_dir)
+
         self.player = Player(dash_unlocked=False)
-        floor_y = 40
         self.player.center_x = SCREEN_WIDTH // 2
-        self.player.center_y = floor_y + self.player.height / 2
+        self.player.center_y = 140
+
+        os.chdir(original_cwd)
 
         self.dash_powerup = DashPowerup(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 + 50)
 
@@ -447,15 +454,9 @@ class MyGame(arcade.Window):
         for circle in self.energy_circles[:]:
             circle.draw()
 
-        arcade.draw_texture_rect(
-            self.player.texture,
-            arcade.rect.XYWH(
-                self.player.center_x,
-                self.player.center_y,
-                self.player.width,
-                self.player.height
-            )
-        )
+        # Отрисовка игрока через метод draw() класса Player
+        if hasattr(self.player, 'draw'):
+            self.player.draw()
 
         self.dash_powerup.draw_dash_image(SCREEN_WIDTH, SCREEN_HEIGHT)
 
@@ -528,13 +529,6 @@ class MyGame(arcade.Window):
 
             was_on_ground = self.player.on_ground
             self.player.on_ground = self.physics_engine.can_jump()
-
-            self.player.update_texture()
-
-            if self.player.change_x > 0:
-                self.player.scale_x = -PLAYER_SCALING
-            elif self.player.change_x < 0:
-                self.player.scale_x = PLAYER_SCALING
 
             if was_on_ground == False and self.player.on_ground == True:
                 self.create_dust_effect()

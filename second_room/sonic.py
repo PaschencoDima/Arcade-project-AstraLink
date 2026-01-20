@@ -147,9 +147,12 @@ class Sonic(arcade.Sprite):
         return self.texture
 
     def set_scale_for_state(self, state):
-        if state in self.scales_dict:
-            self.scale = self.scales_dict[state]
-        else:
+        try:
+            if state in self.scales_dict:
+                self.scale = self.scales_dict[state]
+            else:
+                self.scale = self.default_scale
+        except Exception as e:
             self.scale = self.default_scale
 
     def start_ball_attack(self):
@@ -178,7 +181,7 @@ class Sonic(arcade.Sprite):
         self.set_scale_for_state("BALL_ATTACK")
 
     def update_ball_attack(self, delta_time):
-        if not self.ball_attacking:
+        if not self.ball_attacking or self.state == "DEAD":
             return False
 
         self.ball_speed = min(self.ball_speed + self.ball_acceleration * delta_time * 60, self.ball_max_speed)
@@ -326,12 +329,12 @@ class Sonic(arcade.Sprite):
 
         elif self.state == "DEAD":
             self.set_scale_for_state("DEAD")
-            self.alpha = max(0, self.alpha - 300 * delta_time)
+            if self.animation_timer > 0.5:
+                self.alpha = max(0, self.alpha - 300 * delta_time)
             for spike in self.spikes:
                 spike.alpha = max(0, spike.alpha - 150 * delta_time)
             if self.alpha <= 0:
                 self.active = False
-                self.remove_from_sprite_lists()
 
     def update(self, delta_time):
         if not self.active:
@@ -434,18 +437,18 @@ class Sonic(arcade.Sprite):
 
         self.health -= damage
 
-        if self.alpha == 255:
-            self.alpha = 180
-        else:
+        if self.alpha < 255:
             self.alpha = 255
 
         if self.health <= 0:
             self.health = 0
             self.state = "DEAD"
             self.animation_timer = 0
-            self.set_scale_for_state("DEAD")
-            self.alpha = 255
+            self.scale = self.scales_dict["DEAD"]
             self.ball_attacking = False
+            self.angle = 0
+            self.ball_speed = 0
+            self.texture = self.get_texture_for_state()
 
     def reset(self):
         self.active = True
@@ -462,5 +465,5 @@ class Sonic(arcade.Sprite):
         self.angle = 0
         self.spikes.clear()
         self.texture = self.get_texture_for_state()
-        self.set_scale_for_state("UNDERGROUND")  # Всегда один масштаб
+        self.set_scale_for_state("UNDERGROUND")
         self.alpha = 255

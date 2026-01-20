@@ -26,6 +26,7 @@ class MainRoomWindow(arcade.Window):
         super().__init__(SCREEN_WIDTH, SCREEN_HEIGHT, TITLE, antialiasing=True)
         self.w = SCREEN_WIDTH * 2
         self.h = SCREEN_HEIGHT * 2
+        self.filename = "images/background.png"
 
         self.world_camera = arcade.camera.Camera2D(
             viewport=arcade.rect.LRBT(
@@ -46,13 +47,15 @@ class MainRoomWindow(arcade.Window):
         )
 
         self.player = None
-        self.platforms = arcade.SpriteList()
-        self.walls = arcade.SpriteList()
-        self.spikes = arcade.SpriteList()
-        self.trampolines = arcade.SpriteList()
-        self.background_platforms = arcade.SpriteList()
-        self.sonic_boss_sprites = arcade.SpriteList()
+        self.platforms = None
+        self.walls = None
+        self.spikes = None
+        self.trampolines = None
+        self.background_platforms = None
+        self.sonic_boss_sprites = None
         self.sonic_boss = None
+        self.health_platforms = None
+        self.health_pickups = None
 
         self.physics_engine = None
         self.update_time = 0
@@ -65,16 +68,32 @@ class MainRoomWindow(arcade.Window):
         self.camera_target_x = 0
         self.camera_target_y = 0
 
+        self.death_transition = False
+        self.death_timer = 0
+        self.death_duration = 1.5
+        self.death_alpha = 0
+        self.player_visible = True
+
+        self.last_safe_position = (190, 870)
+        self.highest_platform_position = (190, 820)
+        self.health_pack_position = (1000, 350)
+        self.spike_damage_taken = False
+        self.sonic_boss_defeated = False
+
         self.user_id = get_current_user()
 
         if self.user_id:
             update_current_room(self.user_id, "main_room")
 
         self.health_text = None
+        self.health_bar_width = 200
+        self.health_bar_height = 20
 
         self.setup()
 
     def setup(self):
+        import os
+
         self.texture = arcade.load_texture("images/background.png")
         self.big_platform = arcade.load_texture("images/platform_big.png")
         self.small_platform = arcade.load_texture("images/platform_small.png")
@@ -84,14 +103,33 @@ class MainRoomWindow(arcade.Window):
         self.spike_texture = arcade.load_texture("images/spike.png")
         self.reversed_spike_texture = arcade.load_texture("images/reversed_spike.png")
 
+        if not os.path.exists("images/health_pack.png"):
+            self.health_pack_texture = arcade.make_soft_circle_texture(40, arcade.color.GREEN)
+        else:
+            self.health_pack_texture = arcade.load_texture("images/health_pack.png")
+
         self.platforms = arcade.SpriteList()
         self.walls = arcade.SpriteList()
         self.spikes = arcade.SpriteList()
         self.trampolines = arcade.SpriteList()
         self.background_platforms = arcade.SpriteList()
         self.sonic_boss_sprites = arcade.SpriteList()
+        self.health_platforms = arcade.SpriteList()
+        self.health_pickups = arcade.SpriteList()
+
+        import os
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        original_cwd = os.getcwd()
+
+        parent_dir = os.path.dirname(script_dir)
+        os.chdir(parent_dir)
 
         self.player = Player(dash_unlocked=True)
+        self.player.center_x = 190
+        self.player.center_y = 870
+
+        os.chdir(original_cwd)
+
         self.sonic_boss = None
 
         self.create_platforms()
@@ -143,9 +181,9 @@ class MainRoomWindow(arcade.Window):
             (875, 325, self.wall_texture, 50, 50, True),
             (875, 375, self.wall_texture, 50, 50, True),
             (875, 425, self.wall_texture, 50, 50, True),
-            (875, 475, self.wall_texture, 50, 50, True),
-            (875, 525, self.wall_texture, 50, 50, True),
-            (875, 575, self.wall_texture, 50, 50, True),
+            (875, 475, self.wall_texture, 50, 50, False),
+            (875, 525, self.wall_texture, 50, 50, False),
+            (875, 575, self.wall_texture, 50, 50, False),
             (875, 625, self.wall_texture, 50, 50, True),
             (875, 675, self.wall_texture, 50, 50, True),
             (875, 725, self.wall_texture, 50, 50, True),
@@ -196,6 +234,31 @@ class MainRoomWindow(arcade.Window):
             if add_collision:
                 self.platforms.append(platform)
             self.background_platforms.append(platform)
+
+        health_platform_data = [
+            (1000, 300, self.big_platform, 300, 50, True),
+        ]
+
+        for x, y, texture, width, height, add_collision in health_platform_data:
+            platform = arcade.Sprite()
+            platform.texture = texture
+            platform.center_x = x
+            platform.center_y = y
+            platform.width = width
+            platform.height = height
+            if add_collision:
+                self.platforms.append(platform)
+            self.background_platforms.append(platform)
+            self.health_platforms.append(platform)
+
+        health_pickup = arcade.Sprite()
+        health_pickup.texture = self.health_pack_texture
+        health_pickup.center_x = self.health_pack_position[0]
+        health_pickup.center_y = self.health_pack_position[1]
+        health_pickup.width = 40
+        health_pickup.height = 40
+        health_pickup.heal_amount = 30
+        self.health_pickups.append(health_pickup)
 
         spike_locations = [
             (856, 50, self.spike_texture, 90, 36),
@@ -337,22 +400,31 @@ class MainRoomWindow(arcade.Window):
         self.walls.draw()
         self.spikes.draw()
         self.trampolines.draw()
+        self.health_pickups.draw()
 
-        if self.sonic_boss:
-            if hasattr(self.sonic_boss, 'active') and self.sonic_boss.active:
-                if hasattr(self.sonic_boss, 'spikes'):
-                    self.sonic_boss.spikes.draw()
+        if self.sonic_boss and not self.sonic_boss_defeated:
+            if hasattr(self.sonic_boss, 'spikes'):
+                self.sonic_boss.spikes.draw()
 
-                self.sonic_boss_sprites.draw()
+            self.sonic_boss_sprites.draw()
 
-        self.player.draw()
+        if self.player_visible:
+            self.player.draw()
 
-        if self.sonic_boss and hasattr(self.sonic_boss, 'active') and self.sonic_boss.active:
+        if self.sonic_boss and hasattr(self.sonic_boss,
+                                       'active') and self.sonic_boss.active and not self.sonic_boss_defeated:
             if hasattr(self.sonic_boss, 'draw_health_bar'):
                 self.sonic_boss.draw_health_bar()
 
         self.gui_camera.use()
         self.draw_health_bar()
+
+        if self.death_transition and self.death_alpha > 0:
+            arcade.draw_rect_filled(arcade.rect.XYWH(
+                SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2,
+                10000, 10000),
+                (0, 0, 0, int(self.death_alpha))
+            )
 
     def draw_health_bar(self):
         bar_width = 300
@@ -387,7 +459,7 @@ class MainRoomWindow(arcade.Window):
                 arcade.color.GREEN
             )
 
-        self.health_text.text = f"HP: {int(self.player.hp)}/{self.player.max_hp}"
+        self.health_text.text = f"HP: {int(max(0, self.player.hp))}/{self.player.max_hp}"
         self.health_text.x = bar_x + bar_width / 2
         self.health_text.y = bar_y
         self.health_text.draw()
@@ -395,11 +467,52 @@ class MainRoomWindow(arcade.Window):
     def on_update(self, delta_time):
         self.update_time = delta_time
 
+        if self.death_transition:
+            self.death_timer -= delta_time
+            self.death_alpha = min(255, (1 - self.death_timer / self.death_duration) * 255)
+
+            if self.death_timer <= 0:
+                self.reset_player()
+                self.death_transition = False
+                self.death_alpha = 0
+                self.player_visible = True
+                return
+            else:
+                return
+
+        if self.player.dashing:
+            self.player.dash_timer -= delta_time
+            if self.player.dash_timer <= 0:
+                self.player.dashing = False
+                if abs(self.player.change_x) > PLAYER_MOVEMENT_SPEED:
+                    self.player.change_x = self.player.normal_speed * (1 if self.player.change_x > 0 else -1)
+
+        if self.player.dash_cooldown_timer > 0:
+            self.player.dash_cooldown_timer -= delta_time
+
         self.player.update(delta_time)
 
         self.physics_engine.update()
 
-        if self.player.center_x >= 1500 and self.sonic_boss is None:
+        was_on_ground = getattr(self.player, 'on_ground', False)
+        self.player.on_ground = self.physics_engine.can_jump()
+
+        if self.player.left < 0:
+            self.player.left = 0
+        if self.player.right > self.w:
+            self.player.right = self.w
+
+        if self.player.bottom < -100 and not self.death_transition:
+            self.start_death_transition()
+
+        health_hit_list = arcade.check_for_collision_with_list(self.player, self.health_pickups)
+        for health_pack in health_hit_list:
+            if self.player.hp < self.player.max_hp:
+                self.player.hp = min(self.player.max_hp, self.player.hp + health_pack.heal_amount)
+                self.last_safe_position = (self.health_pack_position[0], self.health_pack_position[1] + 50)
+                health_pack.remove_from_sprite_lists()
+
+        if self.player.center_x >= 1500 and self.sonic_boss is None and not self.sonic_boss_defeated:
             try:
                 from sonic import Sonic
                 self.sonic_boss = Sonic(2000, 80, self.player)
@@ -422,73 +535,146 @@ class MainRoomWindow(arcade.Window):
                     self.sonic_boss.health -= damage
                     if self.sonic_boss.health <= 0:
                         self.sonic_boss.active = False
+                        self.sonic_boss_defeated = True
 
                 self.sonic_boss.update = simple_update
                 self.sonic_boss.take_damage = take_damage
                 self.sonic_boss.spikes = arcade.SpriteList()
 
-        if self.sonic_boss and hasattr(self.sonic_boss, 'active') and self.sonic_boss.active:
-            if hasattr(self.sonic_boss, 'update'):
+        if self.sonic_boss and hasattr(self.sonic_boss, 'active') and not self.sonic_boss_defeated:
+            if not self.sonic_boss.active:
+                self.sonic_boss_sprites.remove(self.sonic_boss)
+                self.sonic_boss = None
+                self.sonic_boss_defeated = True
+            elif hasattr(self.sonic_boss, 'update'):
                 self.sonic_boss.update(delta_time)
 
-            if self.player.attacking:
-                self.check_player_attack()
-
-        was_on_ground = self.player.on_ground
-        self.player.on_ground = self.physics_engine.can_jump()
-
-        self.player.update_texture()
-
-        if not self.player.on_ground:
-            self.player.was_jumping = True
-        elif self.player.was_jumping:
-            self.player.was_jumping = False
-
-        if self.player.left < 0:
-            self.player.left = 0
-        if self.player.right > self.w:
-            self.player.right = self.w
-
-        if self.player.bottom < -100:
-            self.reset_player()
-
         spike_hit_list = arcade.check_for_collision_with_list(self.player, self.spikes)
-        if spike_hit_list:
-            self.reset_player()
+        if spike_hit_list and not self.spike_damage_taken:
+            self.player.hp -= 20
+            self.player.hp = max(0, self.player.hp)
+            self.spike_damage_taken = True
+            if self.player.hp <= 0:
+                self.start_death_transition()
+            else:
+                self.start_death_transition()
+                return
+
+        if not spike_hit_list:
+            self.spike_damage_taken = False
 
         trampoline_hit_list = arcade.check_for_collision_with_list(self.player, self.trampolines)
         if trampoline_hit_list and self.player.change_y < 0:
             self.player.change_y = PLAYER_JUMP_SPEED * 1.5
 
-        if self.sonic_boss and hasattr(self.sonic_boss, 'spikes') and self.sonic_boss.active:
+        if self.sonic_boss and hasattr(self.sonic_boss,
+                                       'spikes') and self.sonic_boss.active and not self.sonic_boss_defeated:
             spike_hit_list = arcade.check_for_collision_with_list(self.player, self.sonic_boss.spikes)
-            if spike_hit_list:
-                self.player.take_damage(
-                    self.sonic_boss.spike_damage if hasattr(self.sonic_boss, 'spike_damage') else 10)
+            if spike_hit_list and not self.spike_damage_taken:
+                self.player.hp -= 20
+                self.player.hp = max(0, self.player.hp)
+                self.spike_damage_taken = True
+                if self.player.hp <= 0:
+                    self.start_death_transition()
+                else:
+                    self.start_death_transition()
+                    return
                 for spike in spike_hit_list:
                     spike.remove_from_sprite_lists()
 
-        if self.sonic_boss and hasattr(self.sonic_boss, 'active') and self.sonic_boss.active:
+        if self.sonic_boss and hasattr(self.sonic_boss,
+                                       'active') and self.sonic_boss.active and not self.sonic_boss_defeated:
             if arcade.check_for_collision(self.player, self.sonic_boss):
-                if hasattr(self.player, 'take_damage') and hasattr(self.sonic_boss, 'contact_damage'):
-                    self.player.take_damage(self.sonic_boss.contact_damage)
+                if hasattr(self.sonic_boss, 'contact_damage'):
+                    damage_amount = self.sonic_boss.contact_damage
+                    damage_taken = self.player.take_damage(damage_amount)
+                    if damage_taken:
+                        self.player.hp = max(0, self.player.hp)
+                        if self.player.hp <= 0:
+                            self.start_death_transition()
 
+        self.check_player_attack()
         self.update_camera_position(delta_time)
 
+    def start_death_transition(self):
+        if not self.death_transition:
+            self.death_transition = True
+            self.death_timer = self.death_duration
+            self.death_alpha = 0
+            self.player_visible = False
+            self.player.change_x = 0
+            self.player.change_y = 0
+
     def reset_player(self):
-        self.player.center_x = 190
-        self.player.center_y = 870
+        if self.player.hp > 0:
+            respawn_x, respawn_y = self.last_safe_position
+        else:
+            respawn_x, respawn_y = self.highest_platform_position
+
+        safe_spawn = self.find_safe_spawn_location(respawn_x, respawn_y)
+
+        if not self.is_position_safe(safe_spawn[0], safe_spawn[1]):
+            if self.player.hp > 0:
+                safe_spawn = (190, 870)
+            else:
+                safe_spawn = (190, 870)
+
+        self.player.center_x = safe_spawn[0]
+        self.player.center_y = safe_spawn[1]
         self.player.change_x = 0
         self.player.change_y = 0
-        self.player.hp = PLAYER_MAX_HP
+        if self.player.hp <= 0:
+            self.player.hp = 100
 
         self.player.dashing = False
         self.player.dash_timer = 0
         self.player.dash_cooldown_timer = 0
 
         self.player.invincible_timer = 0
+        self.spike_damage_taken = False
 
         self.world_camera.position = (self.player.center_x, self.player.center_y)
+
+        if len(self.health_pickups) == 0:
+            self.respawn_health_pickup()
+
+    def is_position_safe(self, x, y):
+        temp_sprite = arcade.SpriteSolidColor(20, 40, arcade.color.RED)
+        temp_sprite.center_x = x
+        temp_sprite.center_y = y
+
+        platform_collisions = arcade.check_for_collision_with_list(temp_sprite, self.platforms)
+        spike_collisions = arcade.check_for_collision_with_list(temp_sprite, self.spikes)
+
+        return not (platform_collisions or spike_collisions)
+
+    def find_safe_spawn_location(self, x, y):
+        test_positions = [
+            (x, y + 20),
+            (x, y + 40),
+            (x + 50, y + 20),
+            (x - 50, y + 20),
+            (x, y + 60),
+            (x + 30, y + 30),
+            (x - 30, y + 30),
+        ]
+
+        for pos_x, pos_y in test_positions:
+            if self.is_position_safe(pos_x, pos_y):
+                return (pos_x, pos_y)
+
+        return (x, y + 20)
+
+    def respawn_health_pickup(self):
+        if len(self.health_pickups) == 0:
+            health_pickup = arcade.Sprite()
+            health_pickup.texture = self.health_pack_texture
+            health_pickup.center_x = self.health_pack_position[0]
+            health_pickup.center_y = self.health_pack_position[1]
+            health_pickup.width = 40
+            health_pickup.height = 40
+            health_pickup.heal_amount = 30
+            self.health_pickups.append(health_pickup)
 
     def update_camera_position(self, delta_time):
         cam_x, cam_y = self.world_camera.position
@@ -545,18 +731,19 @@ class MainRoomWindow(arcade.Window):
         self.world_camera.position = (new_x, new_y)
 
     def on_key_press(self, key, modifiers):
+        if self.death_transition:
+            return
+
         if key == arcade.key.UP or key == arcade.key.W or key == arcade.key.SPACE:
             if self.physics_engine.can_jump():
                 self.player.change_y = PLAYER_JUMP_SPEED
                 self.player.jumping = True
         elif key == arcade.key.LEFT or key == arcade.key.A:
             self.player.change_x = -PLAYER_MOVEMENT_SPEED
-            self.player.set_direction(True)
-            self.player.dash_direction = -1
+            self.player.set_direction(False)
         elif key == arcade.key.RIGHT or key == arcade.key.D:
             self.player.change_x = PLAYER_MOVEMENT_SPEED
-            self.player.set_direction(False)
-            self.player.dash_direction = 1
+            self.player.set_direction(True)
         elif key == arcade.key.Q:
             self.player.activate_dash()
         elif key == arcade.key.Z or key == arcade.key.L:
@@ -573,6 +760,9 @@ class MainRoomWindow(arcade.Window):
                 arcade.close_window()
 
     def on_key_release(self, key, modifiers):
+        if self.death_transition:
+            return
+
         if key == arcade.key.LEFT or key == arcade.key.A:
             if self.player.change_x < 0:
                 self.player.change_x = 0
@@ -583,28 +773,34 @@ class MainRoomWindow(arcade.Window):
             self.player.jumping = False
 
     def on_mouse_press(self, x, y, button, modifiers):
+        if self.death_transition:
+            return
+
         if button == arcade.MOUSE_BUTTON_LEFT:
             if self.player.can_attack():
                 self.player.start_attack()
 
     def check_player_attack(self):
-        if not self.player.attacking or not self.sonic_boss:
+        if self.death_transition or not self.player.attacking:
             return
 
         hitbox = self.player.get_attack_hitbox()
-        if not hitbox or not hasattr(self.sonic_boss, 'take_damage'):
+        if not hitbox:
             return
 
         attack_left, attack_right, attack_bottom, attack_top = hitbox
 
-        if (attack_right > self.sonic_boss.left and
-                attack_left < self.sonic_boss.right and
-                attack_top > self.sonic_boss.bottom and
-                attack_bottom < self.sonic_boss.top):
+        if self.sonic_boss and hasattr(self.sonic_boss, 'active') and self.sonic_boss.active:
+            if (attack_right > self.sonic_boss.left and
+                    attack_left < self.sonic_boss.right and
+                    attack_top > self.sonic_boss.bottom and
+                    attack_bottom < self.sonic_boss.top):
 
-            damage = self.player.deal_damage()
-            if damage > 0:
-                self.sonic_boss.take_damage(damage)
+                damage = self.player.deal_damage()
+                if damage > 0:
+                    self.sonic_boss.take_damage(damage)
+                    if self.sonic_boss.health <= 0:
+                        self.sonic_boss_defeated = True
 
 
 def start_game():

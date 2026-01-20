@@ -232,6 +232,12 @@ class GameWindow(arcade.Window):
         self.transition_duration = 1.0
         self.transition_alpha = 0
 
+        self.death_transition = False
+        self.death_timer = 0
+        self.death_duration = 1.5
+        self.death_alpha = 0
+        self.player_visible = True
+
         self.arena_active = False
         self.arena_robots_spawned = False
         self.arena_completed = False
@@ -249,7 +255,6 @@ class GameWindow(arcade.Window):
 
         self.robots_list = arcade.SpriteList()
 
-        # HP плашка параметры
         self.health_bar_width = 200
         self.health_bar_height = 20
 
@@ -353,8 +358,8 @@ class GameWindow(arcade.Window):
 
             robot.facing_right = True
             robot.scale = 2.0
-            robot.health = 500
-            robot.max_health = 500
+            robot.health = 100
+            robot.max_health = 100
 
             self.robots_list.append(robot)
             self.arena_robots.append(robot)
@@ -650,7 +655,7 @@ class GameWindow(arcade.Window):
                     bullet.remove_from_sprite_lists()
                     damage_taken = self.player.take_damage(robot.bullet_damage)
                     if damage_taken and self.player.hp <= 0:
-                        self.reset_player()
+                        self.start_death_transition()
                     break
 
             if arcade.check_for_collision(self.player, robot):
@@ -663,7 +668,7 @@ class GameWindow(arcade.Window):
                     self.player.change_y = 5
 
                     if self.player.hp <= 0:
-                        self.reset_player()
+                        self.start_death_transition()
 
     def on_draw(self):
         self.clear()
@@ -692,11 +697,11 @@ class GameWindow(arcade.Window):
         for robot in self.robots_list:
             robot.draw()
 
-        self.player.draw()
+        if self.player_visible:
+            self.player.draw()
 
         self.gui_camera.use()
 
-        # Отрисовка плашки HP
         self.draw_health_bar()
 
         if self.player.dash_cooldown_timer > 0:
@@ -711,6 +716,13 @@ class GameWindow(arcade.Window):
                 SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2,
                 10000, 10000),
                 (0, 0, 0, int(self.transition_alpha))
+            )
+
+        if self.death_transition and self.death_alpha > 0:
+            arcade.draw_rect_filled(arcade.rect.XYWH(
+                SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2,
+                10000, 10000),
+                (0, 0, 0, int(self.death_alpha))
             )
 
     def draw_health_bar(self):
@@ -757,6 +769,19 @@ class GameWindow(arcade.Window):
         if self.arena_message_timer > 0:
             self.arena_message_timer -= delta_time
 
+        if self.death_transition:
+            self.death_timer -= delta_time
+            self.death_alpha = min(255, (1 - self.death_timer / self.death_duration) * 255)
+
+            if self.death_timer <= 0:
+                self.reset_player()
+                self.death_transition = False
+                self.death_alpha = 0
+                self.player_visible = True
+                return
+            else:
+                return
+
         if self.player.dashing:
             self.player.dash_timer -= delta_time
             if self.player.dash_timer <= 0:
@@ -778,15 +803,15 @@ class GameWindow(arcade.Window):
                     geyser.apply_blast(self.player)
 
                     if self.player.hp <= 0:
-                        self.reset_player()
+                        self.start_death_transition()
 
         self.physics_engine.update()
 
         self.dust_particles.update(delta_time)
 
         spike_hit_list = arcade.check_for_collision_with_list(self.player, self.spikes)
-        if spike_hit_list:
-            self.reset_player()
+        if spike_hit_list and not self.death_transition:
+            self.start_death_transition()
 
         trampoline_hit_list = arcade.check_for_collision_with_list(self.player, self.trampolines)
         if trampoline_hit_list and self.player.change_y < 0:
@@ -794,8 +819,6 @@ class GameWindow(arcade.Window):
 
         was_on_ground = self.player.on_ground
         self.player.on_ground = self.physics_engine.can_jump()
-
-        self.player.update_texture()
 
         if was_on_ground == False and self.player.on_ground == True:
             self.create_dust_effect()
@@ -810,8 +833,8 @@ class GameWindow(arcade.Window):
         if self.player.right > self.w:
             self.player.right = self.w
 
-        if self.player.bottom < -100:
-            self.reset_player()
+        if self.player.bottom < -100 and not self.death_transition:
+            self.start_death_transition()
 
         if self.dash_unlocked and not self.arena_completed:
             self.check_arena_activation()
@@ -834,8 +857,22 @@ class GameWindow(arcade.Window):
 
         self.update_camera_position(delta_time)
 
+    def start_death_transition(self):
+        if not self.death_transition:
+            self.death_transition = True
+            self.death_timer = self.death_duration
+            self.death_alpha = 0
+            self.player_visible = False
+            self.player.change_x = 0
+            self.player.change_y = 0
+
     def start_transition_to_room2(self):
         self.transition_to_room2 = True
+        self.transition_timer = self.transition_duration
+        self.transition_alpha = 0
+
+    def start_transition_to_snow_room(self):
+        self.start_transition_to_snow_room = True
         self.transition_timer = self.transition_duration
         self.transition_alpha = 0
 
@@ -918,6 +955,9 @@ class GameWindow(arcade.Window):
         self.world_camera.position = (new_x, new_y)
 
     def on_key_press(self, key, modifiers):
+        if self.death_transition:
+            return
+
         if key == arcade.key.UP or key == arcade.key.W or key == arcade.key.SPACE:
             if self.physics_engine.can_jump():
                 self.player.change_y = PLAYER_JUMP_SPEED
@@ -946,6 +986,9 @@ class GameWindow(arcade.Window):
                 arcade.close_window()
 
     def on_key_release(self, key, modifiers):
+        if self.death_transition:
+            return
+
         if key == arcade.key.LEFT or key == arcade.key.A:
             if self.player.change_x < 0:
                 self.player.change_x = 0
@@ -956,12 +999,15 @@ class GameWindow(arcade.Window):
             self.player.jumping = False
 
     def on_mouse_press(self, x, y, button, modifiers):
+        if self.death_transition:
+            return
+
         if button == arcade.MOUSE_BUTTON_LEFT:
             if self.player.can_attack():
                 self.player.start_attack()
 
     def check_player_attack(self):
-        if not self.player.attacking:
+        if self.death_transition or not self.player.attacking:
             return
 
         hitbox = self.player.get_attack_hitbox()

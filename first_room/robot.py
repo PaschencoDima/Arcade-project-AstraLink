@@ -93,7 +93,7 @@ class Robot(arcade.Sprite):
         self.animation_timer = 0
 
         try:
-            rocket = arcade.Sprite("first_room/images/rocket.png", scale=0.1)
+            rocket = arcade.Sprite("first_room/images/rocket.png", scale=0.05)
         except:
             rocket = arcade.SpriteSolidColor(20, 10, arcade.color.RED)
 
