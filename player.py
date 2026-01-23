@@ -11,9 +11,10 @@ PLAYER_MAX_HP = 100
 DASH_SPEED = 30
 DASH_DURATION = 0.3
 DASH_COOLDOWN = 1.0
-ATTACK_DURATION = 0.02
-ATTACK_COOLDOWN = 0.3
+ATTACK_DURATION = 0.01
+ATTACK_COOLDOWN = 0.1
 ANIMATION_SPEED = 0.2
+
 
 class DustParticle(arcade.SpriteCircle):
     def __init__(self, x, y):
@@ -41,8 +42,9 @@ class DustParticle(arcade.SpriteCircle):
         if self.time_alive > self.lifetime or self.alpha <= 0:
             self.remove_from_sprite_lists()
 
+
 class Player(arcade.Sprite):
-    def __init__(self, dash_unlocked=False):
+    def __init__(self, dash_unlocked=False, double_jump_unlocked=False):
         super().__init__(scale=PLAYER_SCALING)
         self.animations = {
             "stand": [],
@@ -50,6 +52,7 @@ class Player(arcade.Sprite):
             "jump_start": [],
             "jump": [],
             "dash": [],
+            "double_jump": [],
         }
         self.animation_scales = {
             "stand": [1.2, 1.2],
@@ -57,6 +60,7 @@ class Player(arcade.Sprite):
             "jump_start": [1.2],
             "jump": [1.0, 0.9],
             "dash": [1.1, 1.1, 1.1],
+            "double_jump": [1.1, 1.2, 1.1],
         }
         self.attack_textures_atack1 = []
         self.attack_textures_atack2 = []
@@ -95,6 +99,12 @@ class Player(arcade.Sprite):
         self.saved_change_x = 0
         self.saved_change_y = 0
         self.dust_list = arcade.SpriteList()
+        self.double_jump_unlocked = double_jump_unlocked
+        self.double_jump_available = True if double_jump_unlocked else False
+        self.jumps_used = 0
+        self.max_jumps = 2 if double_jump_unlocked else 1
+        self.double_jump_animation_timer = 0
+        self.double_jump_animation_duration = 0.3
         self.texture = self.animations["stand"][0] if self.animations["stand"] else None
 
     def load_animations(self):
@@ -108,6 +118,7 @@ class Player(arcade.Sprite):
                 arcade.make_soft_square_texture(50, (100, 200, 100)),
                 arcade.make_soft_square_texture(50, (120, 220, 120))
             ]
+
         try:
             self.animations["run"] = [
                 arcade.load_texture("player_images/run_1.png"),
@@ -118,6 +129,7 @@ class Player(arcade.Sprite):
                 arcade.make_soft_square_texture(50, (100, 150, 200)),
                 arcade.make_soft_square_texture(50, (120, 170, 220))
             ]
+
         try:
             self.animations["jump_start"] = [
                 arcade.load_texture("player_images/jump_start.png")
@@ -126,6 +138,7 @@ class Player(arcade.Sprite):
             self.animations["jump_start"] = [
                 arcade.make_soft_square_texture(50, (200, 150, 100))
             ]
+
         try:
             self.animations["jump"] = [
                 arcade.load_texture("player_images/jump_1.png"),
@@ -136,6 +149,7 @@ class Player(arcade.Sprite):
                 arcade.make_soft_square_texture(50, (200, 200, 100)),
                 arcade.make_soft_square_texture(50, (220, 220, 120))
             ]
+
         try:
             self.animations["dash"] = [
                 arcade.load_texture("player_images/dash_1.png"),
@@ -149,6 +163,19 @@ class Player(arcade.Sprite):
                 arcade.make_soft_square_texture(50, (255, 100, 100))
             ]
 
+        try:
+            self.animations["double_jump"] = [
+                arcade.load_texture("player_images/double_jump_1.png"),
+                arcade.load_texture("player_images/double_jump_2.png"),
+                arcade.load_texture("player_images/double_jump_2.png")
+            ]
+        except:
+            self.animations["double_jump"] = [
+                arcade.make_soft_square_texture(50, (150, 100, 255)),
+                arcade.make_soft_square_texture(50, (170, 120, 255)),
+                arcade.make_soft_square_texture(50, (150, 100, 255))
+            ]
+
     def load_attack_textures(self):
         for i in range(1, 9):
             path = f"player_images/atack_1/phase_{i}.png"
@@ -156,12 +183,14 @@ class Player(arcade.Sprite):
                 self.attack_textures_atack1.append(arcade.load_texture(path))
             else:
                 self.attack_textures_atack1.append(arcade.make_soft_square_texture(64, (255, 50, 50, 150)))
+
         for i in range(1, 7):
             path = f"player_images/atack_2/phase_{i}.png"
             if os.path.exists(path):
                 self.attack_textures_atack2.append(arcade.load_texture(path))
             else:
                 self.attack_textures_atack2.append(arcade.make_soft_square_texture(64, (50, 255, 50, 150)))
+
         self.animations["attack"] = [
             arcade.load_texture("player_images/atack_pose_1.png"),
             arcade.load_texture("player_images/atack_pose_2.png"),
@@ -178,10 +207,28 @@ class Player(arcade.Sprite):
                 if frame_num < len(self.animation_scales["attack"]):
                     self.current_scale = self.animation_scales["attack"][frame_num]
                 return
+
+        if self.state == "double_jump" and self.double_jump_animation_timer > 0:
+            self.double_jump_animation_timer -= delta_time
+            frames = self.animations.get("double_jump", [])
+            scales = self.animation_scales.get("double_jump", [1.0])
+            if frames:
+                progress = 1.0 - (self.double_jump_animation_timer / self.double_jump_animation_duration)
+                frame_idx = min(int(progress * len(frames)), len(frames) - 1)
+                self.texture = frames[frame_idx]
+                if frame_idx < len(scales):
+                    self.current_scale = scales[frame_idx]
+                else:
+                    self.current_scale = scales[-1] if scales else 1.0
+                self.current_frame = frame_idx
+                self.animation_timer = 0
+            return
+
         frames = self.animations.get(self.state, [])
         scales = self.animation_scales.get(self.state, [1.0])
         if not frames:
             return
+
         if self.state == "dash" and self.dashing:
             self.animation_timer += delta_time * 1.0
         elif self.state == "run" and abs(self.change_x) > 0.5:
@@ -189,9 +236,11 @@ class Player(arcade.Sprite):
             self.animation_timer += delta_time * speed_mult * 2
         else:
             self.animation_timer += delta_time
+
         if self.animation_timer >= ANIMATION_SPEED:
             self.animation_timer = 0
             self.current_frame = (self.current_frame + 1) % len(frames)
+
         if self.state == "dash" and self.dashing:
             frame_idx = min(int(self.dash_timer / DASH_DURATION * len(frames)), len(frames) - 1)
             self.texture = frames[frame_idx]
@@ -212,6 +261,8 @@ class Player(arcade.Sprite):
             self.state = "attack"
         elif self.dashing:
             self.state = "dash"
+        elif self.state == "double_jump" and self.double_jump_animation_timer > 0:
+            pass
         elif not self.on_ground:
             if self.jumping and self.change_y > 0:
                 if self.state != "jump_start" and self.change_y > 5:
@@ -275,13 +326,23 @@ class Player(arcade.Sprite):
         return 0
 
     def get_attack_hitbox(self):
-        if not self.attacking or not self.can_deal_damage:
+        if not self.attacking or self.attack_timer <= 0:
             return None
-        hit_w, hit_h = 130, 50
-        offset_x = 70 if self.facing_right else -70
-        left = (self.center_x + offset_x) - hit_w / 2
-        bottom = self.center_y - hit_h / 2
-        return (left, left + hit_w, bottom, bottom + hit_h)
+
+        attack_width = 200
+        attack_height = 100
+
+        if self.facing_right:
+            left = self.center_x + 15
+            right = left + attack_width
+        else:
+            right = self.center_x - 15
+            left = right - attack_width
+
+        bottom = self.center_y - 20
+        top = bottom + attack_height
+
+        return (left, right, bottom, top)
 
     def activate_dash(self):
         if not self.dash_unlocked or self.dash_cooldown_timer > 0 or self.dashing:
@@ -299,6 +360,37 @@ class Player(arcade.Sprite):
         self.current_frame = 0
         self.animation_timer = 0
         return True
+
+    def double_jump(self):
+        print(f"Попытка двойного прыжка: on_ground={self.on_ground}, "
+              f"double_jump_available={self.double_jump_available}, "
+              f"jumps_used={self.jumps_used}, double_jump_unlocked={self.double_jump_unlocked}")
+
+        if (self.double_jump_unlocked and
+                not self.on_ground and
+                self.double_jump_available and
+                self.jumps_used == 1):
+
+            self.change_y = PLAYER_JUMP_SPEED * 0.9
+            self.jumps_used = 2
+            self.double_jump_available = False
+            self.double_jump_animation_timer = self.double_jump_animation_duration
+            self.state = "double_jump"
+            self.current_frame = 0
+            self.animation_timer = 0
+
+            for _ in range(8):
+                dust = DustParticle(self.center_x, self.center_y)
+                dust.change_x = random.uniform(-2, 2)
+                dust.change_y = random.uniform(0, 3)
+                dust.color = (150, 100, 255, 200)
+                self.dust_list.append(dust)
+
+            print("Двойной прыжок УСПЕШЕН!")
+            return True
+
+        print("Двойной прыжок НЕ УДАЛСЯ!")
+        return False
 
     def reset_position(self, x, y):
         self.center_x = x
@@ -319,6 +411,9 @@ class Player(arcade.Sprite):
         self.animation_timer = 0
         self.current_scale = 1.0
         self.attack_phase = 0
+        self.jumps_used = 0
+        self.double_jump_available = self.double_jump_unlocked
+        self.double_jump_animation_timer = 0
 
     def take_damage(self, damage_percent):
         if self.invincible_timer <= 0:
@@ -333,26 +428,45 @@ class Player(arcade.Sprite):
             self.alpha = 150 + int(105 * math.sin(self.invincible_timer * 20))
         else:
             self.alpha = 255
+
         if self.dashing:
             self.dash_timer -= delta_time
             if self.dash_timer <= 0:
                 self.dashing = False
                 if abs(self.change_x) > PLAYER_MOVEMENT_SPEED:
                     self.change_x = self.normal_speed * (1 if self.change_x > 0 else -1)
+
         if self.dash_cooldown_timer > 0:
             self.dash_cooldown_timer -= delta_time
+
         self.update_attack(delta_time)
+
         if not self.attacking:
             if self.change_x > 0:
                 self.set_direction(True)
             elif self.change_x < 0:
                 self.set_direction(False)
+
         self.update_state()
         self.update_animation(delta_time)
+
+        if self.on_ground:
+            self.double_jump_available = self.double_jump_unlocked
+
         if self.on_ground and abs(self.change_x) > 0.1 and random.random() < 0.1:
             self.dust_list.append(DustParticle(self.center_x, self.bottom))
+
         self.dust_list.update()
         self.was_jumping = self.jumping
+
+    def jump(self):
+        if self.on_ground and self.jumps_used == 0:
+            self.change_y = PLAYER_JUMP_SPEED
+            self.jumping = True
+            self.jumps_used = 1
+            self.double_jump_available = self.double_jump_unlocked
+            return True
+        return False
 
     def draw(self, **kwargs):
         self.dust_list.draw()
@@ -375,6 +489,7 @@ class Player(arcade.Sprite):
                 ),
                 alpha=self.alpha
             )
+
         if self.attacking:
             textures = self.attack_textures_atack1 if self.attack_type == 1 else self.attack_textures_atack2
             if self.attack_phase < len(textures):
@@ -395,6 +510,11 @@ class Player(arcade.Sprite):
 
     def unlock_dash(self):
         self.dash_unlocked = True
+
+    def unlock_double_jump(self):
+        self.double_jump_unlocked = True
+        self.double_jump_available = True
+        self.max_jumps = 2
 
     def can_dash(self):
         return self.dash_unlocked and self.dash_cooldown_timer <= 0
@@ -417,3 +537,6 @@ class Player(arcade.Sprite):
         self.animation_timer = 0
         self.current_scale = 1.0
         self.attack_phase = 0
+        self.jumps_used = 0
+        self.double_jump_available = self.double_jump_unlocked
+        self.double_jump_animation_timer = 0

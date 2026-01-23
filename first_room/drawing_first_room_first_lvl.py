@@ -232,6 +232,11 @@ class GameWindow(arcade.Window):
         self.transition_duration = 1.0
         self.transition_alpha = 0
 
+        self.transition_to_main_room = False
+        self.transition_to_main_room_timer = 0
+        self.transition_to_main_room_duration = 1.0
+        self.transition_to_main_room_alpha = 0
+
         self.death_transition = False
         self.death_timer = 0
         self.death_duration = 1.5
@@ -307,7 +312,21 @@ class GameWindow(arcade.Window):
             anchor_y="center"
         )
 
-        self.player = Player(dash_unlocked=self.dash_unlocked)
+        self.user_id = get_current_user()
+        self.dash_unlocked = False
+        double_jump_unlocked = False
+
+        if self.user_id:
+            progress = get_player_progress(self.user_id)
+            if isinstance(progress, dict):
+                self.dash_unlocked = progress.get('dash_unlocked', False)
+                double_jump_unlocked = progress.get('double_jump_unlocked', False)
+            else:
+                self.dash_unlocked = False
+                double_jump_unlocked = False
+            update_current_room(self.user_id, 1)
+
+        self.player = Player(dash_unlocked=self.dash_unlocked, double_jump_unlocked=double_jump_unlocked)
 
         self.create_platforms()
 
@@ -346,8 +365,8 @@ class GameWindow(arcade.Window):
         from first_room.robot import Robot
 
         platform_positions = [
-            (720 * 2 + 200, 600),
-            (1040 * 2 + 200, 600)
+            (720 * 2, 600),
+            (1040 * 2, 600)
         ]
 
         for x, y in platform_positions:
@@ -725,6 +744,13 @@ class GameWindow(arcade.Window):
                 (0, 0, 0, int(self.death_alpha))
             )
 
+        if self.transition_to_main_room and self.transition_to_main_room_alpha > 0:
+            arcade.draw_rect_filled(arcade.rect.XYWH(
+                SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2,
+                10000, 10000),
+                (0, 0, 0, int(self.transition_to_main_room_alpha))
+            )
+
     def draw_health_bar(self):
         bar_width = 300
         bar_height = 35
@@ -765,6 +791,18 @@ class GameWindow(arcade.Window):
 
     def on_update(self, delta_time):
         self.update_time = delta_time
+
+        if self.player.center_x >= self.w - 40 and not self.transition_to_main_room:
+            self.start_transition_to_main_room()
+
+        if self.transition_to_main_room:
+            self.transition_to_main_room_timer -= delta_time
+            self.transition_to_main_room_alpha = min(255, (
+                        1 - self.transition_to_main_room_timer / self.transition_to_main_room_duration) * 255)
+
+            if self.transition_to_main_room_timer <= 0:
+                self.go_to_main_room()
+                return
 
         if self.arena_message_timer > 0:
             self.arena_message_timer -= delta_time
@@ -820,6 +858,10 @@ class GameWindow(arcade.Window):
         was_on_ground = self.player.on_ground
         self.player.on_ground = self.physics_engine.can_jump()
 
+        if self.player.on_ground:
+            self.player.jumps_used = 0
+            self.player.double_jump_available = self.player.double_jump_unlocked
+
         if was_on_ground == False and self.player.on_ground == True:
             self.create_dust_effect()
 
@@ -871,11 +913,6 @@ class GameWindow(arcade.Window):
         self.transition_timer = self.transition_duration
         self.transition_alpha = 0
 
-    def start_transition_to_snow_room(self):
-        self.start_transition_to_snow_room = True
-        self.transition_timer = self.transition_duration
-        self.transition_alpha = 0
-
     def go_to_room2(self):
         if self.user_id:
             update_current_room(self.user_id, 2)
@@ -884,6 +921,30 @@ class GameWindow(arcade.Window):
 
         import first_room.drawing_second_room_first_lvl
         first_room.drawing_second_room_first_lvl.start_game()
+
+    def start_transition_to_main_room(self):
+        self.transition_to_main_room = True
+        self.transition_to_main_room_timer = self.transition_to_main_room_duration
+        self.transition_to_main_room_alpha = 0
+
+    def go_to_main_room(self):
+        if self.user_id:
+            from database import update_current_room
+            update_current_room(self.user_id, "main_room")
+
+        self.close()
+
+        try:
+            import sys
+            import os
+            sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+            from second_room.main_room import MainRoomWindow
+            window = MainRoomWindow()
+            arcade.run()
+        except ImportError as e:
+            print(f"Error loading main room: {e}")
+            arcade.close_window()
 
     def reset_player(self):
         self.player.center_x = 0
@@ -959,9 +1020,16 @@ class GameWindow(arcade.Window):
             return
 
         if key == arcade.key.UP or key == arcade.key.W or key == arcade.key.SPACE:
-            if self.physics_engine.can_jump():
-                self.player.change_y = PLAYER_JUMP_SPEED
-                self.player.jumping = True
+            if self.player.on_ground:
+                success = self.player.jump()
+                if success:
+                    pass
+            elif self.player.double_jump_unlocked:
+                success = self.player.double_jump()
+                if success:
+                    pass
+                else:
+                    pass
         elif key == arcade.key.LEFT or key == arcade.key.A:
             self.player.change_x = -PLAYER_MOVEMENT_SPEED
             self.player.set_direction(False)

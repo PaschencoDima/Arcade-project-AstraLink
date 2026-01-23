@@ -23,7 +23,9 @@ def init_database():
         CREATE TABLE IF NOT EXISTS player_progress (
             user_id INTEGER PRIMARY KEY,
             dash_unlocked BOOLEAN DEFAULT 0,
+            double_jump_unlocked BOOLEAN DEFAULT 0,
             arena_completed BOOLEAN DEFAULT 0,
+            sonic_defeated BOOLEAN DEFAULT 0,
             last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (user_id) REFERENCES users(id)
         )
@@ -57,6 +59,7 @@ def init_database():
             total_damage_dealt INTEGER DEFAULT 0,
             total_play_time INTEGER DEFAULT 0,
             deaths_count INTEGER DEFAULT 0,
+            bosses_defeated INTEGER DEFAULT 0,
             last_played TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (user_id) REFERENCES users(id)
         )
@@ -161,7 +164,8 @@ def get_current_user():
         conn.close()
 
 
-def update_player_progress(user_id, dash_unlocked=None, arena_completed=None):
+def update_player_progress(user_id, dash_unlocked=None, double_jump_unlocked=None,
+                           arena_completed=None, sonic_defeated=None):
     conn = sqlite3.connect(DATABASE_NAME)
     cursor = conn.cursor()
 
@@ -173,9 +177,17 @@ def update_player_progress(user_id, dash_unlocked=None, arena_completed=None):
             update_fields.append("dash_unlocked = ?")
             params.append(1 if dash_unlocked else 0)
 
+        if double_jump_unlocked is not None:
+            update_fields.append("double_jump_unlocked = ?")
+            params.append(1 if double_jump_unlocked else 0)
+
         if arena_completed is not None:
             update_fields.append("arena_completed = ?")
             params.append(1 if arena_completed else 0)
+
+        if sonic_defeated is not None:
+            update_fields.append("sonic_defeated = ?")
+            params.append(1 if sonic_defeated else 0)
 
         if update_fields:
             update_fields.append("last_updated = CURRENT_TIMESTAMP")
@@ -201,18 +213,33 @@ def get_player_progress(user_id):
 
     try:
         cursor.execute("""
-            SELECT dash_unlocked, arena_completed 
+            SELECT dash_unlocked, double_jump_unlocked, arena_completed, sonic_defeated 
             FROM player_progress 
             WHERE user_id = ?
         """, (user_id,))
         result = cursor.fetchone()
 
         if result:
-            dash_unlocked, arena_completed = result
-            return bool(dash_unlocked)
-        return False
+            dash_unlocked, double_jump_unlocked, arena_completed, sonic_defeated = result
+            return {
+                'dash_unlocked': bool(dash_unlocked),
+                'double_jump_unlocked': bool(double_jump_unlocked),
+                'arena_completed': bool(arena_completed),
+                'sonic_defeated': bool(sonic_defeated)
+            }
+        return {
+            'dash_unlocked': False,
+            'double_jump_unlocked': False,
+            'arena_completed': False,
+            'sonic_defeated': False
+        }
     except Exception as e:
-        return False
+        return {
+            'dash_unlocked': False,
+            'double_jump_unlocked': False,
+            'arena_completed': False,
+            'sonic_defeated': False
+        }
     finally:
         conn.close()
 
@@ -239,6 +266,80 @@ def unlock_dash_ability(user_id):
             SET unlocked = 1, unlocked_at = CURRENT_TIMESTAMP
             WHERE user_id = ? AND achievement_name = ? AND unlocked = 0
         """, (user_id, "Мастер скорости"))
+
+        conn.commit()
+        return True
+    except Exception as e:
+        return False
+    finally:
+        conn.close()
+
+
+def unlock_double_jump_ability(user_id):
+    conn = sqlite3.connect(DATABASE_NAME)
+    cursor = conn.cursor()
+
+    try:
+        cursor.execute("""
+            UPDATE player_progress 
+            SET double_jump_unlocked = 1, last_updated = CURRENT_TIMESTAMP 
+            WHERE user_id = ?
+        """, (user_id,))
+
+        cursor.execute("""
+            UPDATE player_stats 
+            SET bosses_defeated = bosses_defeated + 1
+            WHERE user_id = ?
+        """, (user_id,))
+
+        cursor.execute("""
+            INSERT OR IGNORE INTO achievements 
+            (user_id, achievement_name, achievement_description) 
+            VALUES (?, ?, ?)
+        """, (user_id, "Воздушный мастер", "Разблокируйте двойной прыжок"))
+
+        cursor.execute("""
+            UPDATE achievements 
+            SET unlocked = 1, unlocked_at = CURRENT_TIMESTAMP
+            WHERE user_id = ? AND achievement_name = ? AND unlocked = 0
+        """, (user_id, "Воздушный мастер"))
+
+        conn.commit()
+        return True
+    except Exception as e:
+        return False
+    finally:
+        conn.close()
+
+
+def mark_sonic_defeated(user_id):
+    conn = sqlite3.connect(DATABASE_NAME)
+    cursor = conn.cursor()
+
+    try:
+        cursor.execute("""
+            UPDATE player_progress 
+            SET sonic_defeated = 1, last_updated = CURRENT_TIMESTAMP 
+            WHERE user_id = ?
+        """, (user_id,))
+
+        cursor.execute("""
+            UPDATE player_stats 
+            SET bosses_defeated = bosses_defeated + 1
+            WHERE user_id = ?
+        """, (user_id,))
+
+        cursor.execute("""
+            INSERT OR IGNORE INTO achievements 
+            (user_id, achievement_name, achievement_description) 
+            VALUES (?, ?, ?)
+        """, (user_id, "Победитель Соника", "Победите босса Соника"))
+
+        cursor.execute("""
+            UPDATE achievements 
+            SET unlocked = 1, unlocked_at = CURRENT_TIMESTAMP
+            WHERE user_id = ? AND achievement_name = ? AND unlocked = 0
+        """, (user_id, "Победитель Соника"))
 
         conn.commit()
         return True
@@ -359,7 +460,7 @@ def get_arena_progress(user_id):
 
 
 def update_player_stats(user_id, robots_defeated=0, damage_dealt=0,
-                        play_time=0, death=False):
+                        play_time=0, death=False, boss_defeated=False):
     conn = sqlite3.connect(DATABASE_NAME)
     cursor = conn.cursor()
 
@@ -381,6 +482,9 @@ def update_player_stats(user_id, robots_defeated=0, damage_dealt=0,
 
         if death:
             update_fields.append("deaths_count = deaths_count + 1")
+
+        if boss_defeated:
+            update_fields.append("bosses_defeated = bosses_defeated + 1")
 
         if update_fields:
             update_fields.append("last_played = CURRENT_TIMESTAMP")
@@ -407,7 +511,7 @@ def get_player_stats(user_id):
     try:
         cursor.execute("""
             SELECT total_robots_defeated, total_damage_dealt, 
-                   total_play_time, deaths_count, last_played
+                   total_play_time, deaths_count, bosses_defeated, last_played
             FROM player_stats 
             WHERE user_id = ?
         """, (user_id,))
@@ -419,13 +523,15 @@ def get_player_stats(user_id):
                 'total_damage_dealt': result[1],
                 'total_play_time': result[2],
                 'deaths_count': result[3],
-                'last_played': result[4]
+                'bosses_defeated': result[4],
+                'last_played': result[5]
             }
         return {
             'total_robots_defeated': 0,
             'total_damage_dealt': 0,
             'total_play_time': 0,
             'deaths_count': 0,
+            'bosses_defeated': 0,
             'last_played': None
         }
     except Exception as e:
@@ -434,6 +540,7 @@ def get_player_stats(user_id):
             'total_damage_dealt': 0,
             'total_play_time': 0,
             'deaths_count': 0,
+            'bosses_defeated': 0,
             'last_played': None
         }
     finally:
@@ -442,13 +549,15 @@ def get_player_stats(user_id):
 
 def check_achievements(user_id, cursor):
     try:
-        cursor.execute("SELECT dash_unlocked, arena_completed FROM player_progress WHERE user_id = ?", (user_id,))
+        cursor.execute(
+            "SELECT dash_unlocked, double_jump_unlocked, arena_completed, sonic_defeated FROM player_progress WHERE user_id = ?",
+            (user_id,))
         result = cursor.fetchone()
 
         if not result:
             return
 
-        dash_unlocked, arena_completed = result
+        dash_unlocked, double_jump_unlocked, arena_completed, sonic_defeated = result
 
         if dash_unlocked:
             cursor.execute("""
@@ -462,6 +571,32 @@ def check_achievements(user_id, cursor):
                 SET unlocked = 1, unlocked_at = CURRENT_TIMESTAMP
                 WHERE user_id = ? AND achievement_name = ? AND unlocked = 0
             """, (user_id, "Мастер скорости"))
+
+        if double_jump_unlocked:
+            cursor.execute("""
+                INSERT OR IGNORE INTO achievements 
+                (user_id, achievement_name, achievement_description) 
+                VALUES (?, ?, ?)
+            """, (user_id, "Воздушный мастер", "Разблокируйте двойной прыжок"))
+
+            cursor.execute("""
+                UPDATE achievements 
+                SET unlocked = 1, unlocked_at = CURRENT_TIMESTAMP
+                WHERE user_id = ? AND achievement_name = ? AND unlocked = 0
+            """, (user_id, "Воздушный мастер"))
+
+        if sonic_defeated:
+            cursor.execute("""
+                INSERT OR IGNORE INTO achievements 
+                (user_id, achievement_name, achievement_description) 
+                VALUES (?, ?, ?)
+            """, (user_id, "Победитель Соника", "Победите босса Соника"))
+
+            cursor.execute("""
+                UPDATE achievements 
+                SET unlocked = 1, unlocked_at = CURRENT_TIMESTAMP
+                WHERE user_id = ? AND achievement_name = ? AND unlocked = 0
+            """, (user_id, "Победитель Соника"))
 
         if arena_completed:
             cursor.execute("""
@@ -488,7 +623,7 @@ def check_arena_achievements(user_id, cursor, robots_defeated):
 def check_stat_achievements(user_id, cursor):
     try:
         cursor.execute("""
-            SELECT total_robots_defeated, total_play_time, deaths_count
+            SELECT total_robots_defeated, total_play_time, deaths_count, bosses_defeated
             FROM player_stats 
             WHERE user_id = ?
         """, (user_id,))
@@ -497,7 +632,7 @@ def check_stat_achievements(user_id, cursor):
         if not stats:
             return
 
-        total_robots, total_play_time, deaths_count = stats
+        total_robots, total_play_time, deaths_count, bosses_defeated = stats
 
         if total_robots >= 10:
             cursor.execute("""
@@ -519,6 +654,19 @@ def check_stat_achievements(user_id, cursor):
                 SET unlocked = 1, unlocked_at = CURRENT_TIMESTAMP
                 WHERE user_id = ? AND achievement_name = ? AND unlocked = 0
             """, (user_id, "Неудачник"))
+
+        if bosses_defeated >= 1:
+            cursor.execute("""
+                INSERT OR IGNORE INTO achievements 
+                (user_id, achievement_name, achievement_description) 
+                VALUES (?, ?, ?)
+            """, (user_id, "Охотник на боссов", "Победите первого босса"))
+
+            cursor.execute("""
+                UPDATE achievements 
+                SET unlocked = 1, unlocked_at = CURRENT_TIMESTAMP
+                WHERE user_id = ? AND achievement_name = ? AND unlocked = 0
+            """, (user_id, "Охотник на боссов"))
     except Exception as e:
         pass
 
@@ -578,7 +726,7 @@ def get_user_info(user_id):
 
         username, created_at = user_result
 
-        progress_val = get_player_progress(user_id)
+        progress = get_player_progress(user_id)
         stats = get_player_stats(user_id)
         achievements = get_achievements(user_id)
         arena_progress = get_arena_progress(user_id)
@@ -586,7 +734,7 @@ def get_user_info(user_id):
         return {
             'username': username,
             'created_at': created_at,
-            'progress': {'dash_unlocked': progress_val, 'arena_completed': arena_progress['arena_completed']},
+            'progress': progress,
             'stats': stats,
             'achievements': achievements,
             'arena_progress': arena_progress
@@ -604,7 +752,8 @@ def reset_player_progress(user_id):
     try:
         cursor.execute("""
             UPDATE player_progress 
-            SET dash_unlocked = 0, arena_completed = 0, last_updated = CURRENT_TIMESTAMP 
+            SET dash_unlocked = 0, double_jump_unlocked = 0, arena_completed = 0, 
+                sonic_defeated = 0, last_updated = CURRENT_TIMESTAMP 
             WHERE user_id = ?
         """, (user_id,))
 
@@ -614,6 +763,13 @@ def reset_player_progress(user_id):
             UPDATE achievements 
             SET unlocked = 0, unlocked_at = NULL 
             WHERE user_id = ? AND achievement_name NOT IN ('Новичок', 'Первые шаги')
+        """, (user_id,))
+
+        cursor.execute("""
+            UPDATE player_stats 
+            SET total_robots_defeated = 0, total_damage_dealt = 0,
+                bosses_defeated = 0, deaths_count = 0
+            WHERE user_id = ?
         """, (user_id,))
 
         cursor.execute("UPDATE current_session SET current_room = 1 WHERE user_id = ?", (user_id,))

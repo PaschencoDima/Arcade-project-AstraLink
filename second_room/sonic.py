@@ -7,9 +7,14 @@ import random
 class Sonic(arcade.Sprite):
     def __init__(self, x, y, player=None):
         try:
-            super().__init__("images/underground.png", scale=1.0)
-        except:
-            super().__init__(arcade.make_soft_circle_texture(50, arcade.color.BLUE), scale=1.0)
+            texture_path = "second_room/images/underground.png"
+            if os.path.exists(texture_path):
+                texture = arcade.load_texture(texture_path)
+                super().__init__(texture, scale=0.3)
+            else:
+                super().__init__(arcade.make_soft_circle_texture(50, arcade.color.BLUE), scale=0.3)
+        except Exception as e:
+            super().__init__(arcade.make_soft_circle_texture(50, arcade.color.BLUE), scale=0.3)
 
         self.center_x = x
         self.center_y = y
@@ -18,7 +23,7 @@ class Sonic(arcade.Sprite):
         self.active = True
         self.health = 500
         self.max_health = 500
-        self.contact_damage = 35
+        self.contact_damage = 25
         self.spike_damage = 10
 
         self.state = "UNDERGROUND"
@@ -54,17 +59,19 @@ class Sonic(arcade.Sprite):
             "BALL_ATTACK": 0.15,
             "DEAD": 0.5
         }
-        self.default_scale = 1.0
 
         self.load_textures()
 
         self.initial_y = y
         self.center_y = y - 50
-        self.scale = self.scales_dict["UNDERGROUND"]
         self.angle = 0
 
+        # Устанавливаем начальную текстуру и масштаб
+        self.texture = self.get_texture_for_state()
+        self.scale = self.scales_dict["UNDERGROUND"]
+
     def load_textures(self):
-        main_path = "images/"
+        main_path = "second_room/images/"
 
         self.textures_dict["standing"] = []
         for i in range(1, 4):
@@ -151,9 +158,9 @@ class Sonic(arcade.Sprite):
             if state in self.scales_dict:
                 self.scale = self.scales_dict[state]
             else:
-                self.scale = self.default_scale
+                self.scale = 0.5
         except Exception as e:
-            self.scale = self.default_scale
+            self.scale = 0.5
 
     def start_ball_attack(self):
         if self.state == "DEAD" or self.ball_attacking:
@@ -217,7 +224,7 @@ class Sonic(arcade.Sprite):
 
         angles = [0, 45, 90, 135, 180, 225, 270, 315]
 
-        spike_texture_path = "images/enemy_spike.png"
+        spike_texture_path = "second_room/images/enemy_spike.png"
         spike_texture = None
         if os.path.exists(spike_texture_path):
             spike_texture = arcade.load_texture(spike_texture_path)
@@ -449,6 +456,8 @@ class Sonic(arcade.Sprite):
             self.angle = 0
             self.ball_speed = 0
             self.texture = self.get_texture_for_state()
+
+        return True
 
     def reset(self):
         self.active = True

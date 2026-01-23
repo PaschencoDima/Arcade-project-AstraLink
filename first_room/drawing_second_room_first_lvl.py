@@ -8,7 +8,7 @@ from arcade import SpriteList
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from player import Player, DustParticle
-from database import get_current_user, update_player_progress, update_current_room
+from database import get_current_user, update_player_progress, update_current_room, get_player_progress
 
 SCREEN_WIDTH, SCREEN_HEIGHT = 1200, 675
 TITLE = "Texture - Комната 2"
@@ -279,8 +279,11 @@ class MyGame(arcade.Window):
         self.dash_unlocked = False
 
         if self.user_id:
-            from database import get_player_progress
-            self.dash_unlocked = get_player_progress(self.user_id)
+            progress = get_player_progress(self.user_id)
+            if isinstance(progress, dict):
+                self.dash_unlocked = progress.get('dash_unlocked', False)
+            else:
+                self.dash_unlocked = False
 
             if self.dash_unlocked:
                 self.close()
