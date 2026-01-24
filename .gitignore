@@ -1,0 +1,7 @@
+venv
+.idea
+__pycache__
+first_room/__pycache__
+second_room/__pycache__
+start_window/__pycache__
+game_database.db
