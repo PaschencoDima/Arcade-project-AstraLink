@@ -526,6 +526,9 @@ class MainRoomWindow(arcade.Window):
         if self.player is None:
             return
 
+        if self.player.center_x >= self.w - 40:
+            self.go_to_room3()
+
         if self.player.center_x <= 50 and not self.transition_to_first_room:
             self.start_transition_to_first_room()
 
@@ -819,6 +822,16 @@ class MainRoomWindow(arcade.Window):
             arcade.run()
         except ImportError:
             arcade.close_window()
+
+    def go_to_room3(self):
+        if self.user_id:
+            from database import update_current_room
+            update_current_room(self.user_id, 3)
+
+        self.close()
+
+        import third_room.drawing_third_room
+        third_room.drawing_third_room.start_game()
 
     def unlock_double_jump(self):
         if self.user_id and not self.player.double_jump_unlocked:
